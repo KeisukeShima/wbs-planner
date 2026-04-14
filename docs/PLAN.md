@@ -162,7 +162,7 @@
 ### アーキテクチャ概要
 
 ```
-gantt-generator.html（単一ファイル）
+wbs-planner.html（単一ファイル）
 │
 ├── Sidebar（左ペイン：設定エディタ）
 │   ├── Tab: プロジェクト設定  ← projectName, startDate, releaseDate, evalPeriod, ganttUnit

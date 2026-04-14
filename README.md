@@ -5,10 +5,10 @@
 ファイル1つ、インストールなし。開発項目を入力するだけで **WBS 番号付きのガントチャートを自動生成**し、そのまま **JIRA に一括インポートできる CSV** を出力します。
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![No Dependencies](https://img.shields.io/badge/dependencies-none-brightgreen)](gantt-generator.html)
-[![Single File](https://img.shields.io/badge/delivery-single%20HTML-orange)](gantt-generator.html)
+[![No Dependencies](https://img.shields.io/badge/dependencies-none-brightgreen)](wbs-planner.html)
+[![Single File](https://img.shields.io/badge/delivery-single%20HTML-orange)](wbs-planner.html)
 
-**[→ gantt-generator.html をダウンロードして開くだけで使えます](gantt-generator.html)**
+**[→ wbs-planner.html をダウンロードして開くだけで使えます](wbs-planner.html)**
 
 ![ガントチャート生成例](screenshots/gantt-chart.png)
 
@@ -193,7 +193,7 @@ gantt
 
 ### 1. ファイルを開く
 
-[`gantt-generator.html`](gantt-generator.html) をダウンロードし、ブラウザでダブルクリックします。  
+[`wbs-planner.html`](wbs-planner.html) をダウンロードし、ブラウザでダブルクリックします。  
 サーバー不要、ネット接続不要で即起動します。
 
 ### 2. プロジェクト設定を入力する
