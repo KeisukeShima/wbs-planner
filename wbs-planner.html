@@ -1258,6 +1258,123 @@ function initJiraTab() {
   if (typeof renderJiraPeopleMap === 'function') renderJiraPeopleMap();
 }
 
+function makeADF(text) {
+  if (!text) return undefined;
+  return { type: 'doc', version: 1, content: [{ type: 'paragraph', content: [{ type: 'text', text: String(text) }] }] };
+}
+
+function getAccountId(personName) {
+  const p = C.people.find(x => x.name === personName);
+  return (p && p.jiraUser) ? p.jiraUser : null;
+}
+
+async function pushToJira() {
+  const btn   = document.getElementById('btn-jira-push');
+  const logEl = document.getElementById('jira-push-result');
+
+  if (!JC.siteUrl || !JC.email || !JC.apiToken || !JC.projectKey) {
+    alert('JIRA タブの接続設定（URL・メール・API トークン・プロジェクトキー）を入力してください');
+    return;
+  }
+
+  let scheduled;
+  try { scheduled = runSchedule(); } catch(e) { alert('スケジューリングエラー: ' + e.message); return; }
+  const { tasks } = scheduled;
+  if (!tasks.length) { alert('登録するタスクがありません'); return; }
+
+  btn.disabled = true; btn.textContent = '登録中…';
+  logEl.innerHTML = '<div class="jira-log" id="jira-log"></div>';
+  const log = document.getElementById('jira-log');
+  const addLog = (text, isErr = false) => {
+    const d = document.createElement('div');
+    d.className = 'jira-log-line' + (isErr ? ' err' : ' ok');
+    d.textContent = text;
+    log.prepend(d);
+  };
+
+  const itemGroups = {};
+  tasks.forEach(t => { if (!itemGroups[t.itemIdx]) itemGroups[t.itemIdx] = []; itemGroups[t.itemIdx].push(t); });
+
+  let taskCount = 0, subCount = 0, errCount = 0;
+
+  for (let iIdx = 0; iIdx < C.items.length; iIdx++) {
+    const item       = C.items[iIdx];
+    const phaseTasks = itemGroups[iIdx] || [];
+    if (!phaseTasks.length) continue;
+
+    const taskSummary   = `${iIdx + 1} ${item.name}`;
+    const totalDays     = phaseTasks.filter(t => !t.isBackground).reduce((s, t) => s + t.totalDays, 0);
+    const firstPhase    = phaseTasks.find(t => !t.isBackground && t.assignedPeople.length > 0);
+    const taskAccountId = firstPhase ? getAccountId(firstPhase.assignedPeople[0]) : null;
+    const taskDesc      = [
+      item.category ? `カテゴリ: ${item.category}` : '',
+      item.note     ? `メモ: ${item.note}`         : '',
+      `稼働日数（合計）: ${totalDays}日`,
+    ].filter(Boolean).join('\n');
+
+    const taskBody = { fields: {
+      project:     { key: JC.projectKey },
+      summary:     taskSummary,
+      issuetype:   { name: 'Task' },
+      description: makeADF(taskDesc),
+      ...(C.epicKey      ? { customfield_10014: C.epicKey }              : {}),
+      ...(taskAccountId  ? { assignee: { accountId: taskAccountId } }    : {}),
+    }};
+
+    let taskKey;
+    try {
+      const res = await jiraApi('/issue', { method: 'POST', body: JSON.stringify(taskBody) });
+      taskKey = res.key;
+      taskCount++;
+      addLog(`✓ Task ${taskKey}: ${taskSummary}`);
+    } catch(e) {
+      errCount++;
+      addLog(`✗ Task "${taskSummary}": ${e.message}`, true);
+      continue;
+    }
+
+    for (const t of phaseTasks) {
+      const pt         = C.phaseTypes.find(x => x.name === t.phaseType);
+      const subSummary = `${t.wbsNo} ${t.phaseType} — ${t.itemName}`;
+
+      let subAccountId = null;
+      if (!t.isBackground && t.assignedPeople.length > 0) {
+        subAccountId = getAccountId(t.assignedPeople[0]);
+      }
+
+      const subDesc = [
+        pt ? `担当チーム: ${pt.team}` : '',
+        `稼働日数: ${t.totalDays}日`,
+        t.isBackground ? '（バックグラウンドタスク）' : '',
+        (t.requireAll && t.assignedPeople.length > 1)
+          ? `全担当者: ${t.assignedPeople.join(', ')}` : '',
+      ].filter(Boolean).join('\n');
+
+      const subBody = { fields: {
+        project:     { key: JC.projectKey },
+        summary:     subSummary,
+        issuetype:   { name: 'Sub-task' },
+        parent:      { key: taskKey },
+        description: makeADF(subDesc),
+        ...(subAccountId ? { assignee: { accountId: subAccountId } } : {}),
+      }};
+
+      try {
+        const res = await jiraApi('/issue', { method: 'POST', body: JSON.stringify(subBody) });
+        subCount++;
+        addLog(`  ✓ Sub-task ${res.key}: ${subSummary}`);
+      } catch(e) {
+        errCount++;
+        addLog(`  ✗ Sub-task "${subSummary}": ${e.message}`, true);
+      }
+    }
+  }
+
+  const summary = `登録完了: Task ${taskCount} 件, Sub-task ${subCount} 件${errCount ? `（エラー ${errCount} 件）` : ''}`;
+  addLog(summary, errCount > 0);
+  btn.disabled = false; btn.textContent = 'JIRA に登録';
+}
+
 function renderJiraPeopleMap() {
   const el = document.getElementById('jira-people-map');
   if (!el) return;
@@ -1294,6 +1411,8 @@ async function testJiraConnection() {
 }
 
 document.getElementById('btn-jira-test').addEventListener('click', testJiraConnection);
+
+document.getElementById('btn-jira-push').addEventListener('click', pushToJira);
 
 document.getElementById('btn-jira-users').addEventListener('click', async () => {
   const btn = document.getElementById('btn-jira-users');
