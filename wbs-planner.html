@@ -1228,10 +1228,20 @@ function buildViewerHTML() {
 // ── JIRA API ──
 let jiraUsers = []; // 取得した JIRA ユーザー一覧（セッション中のみ保持）
 
-async function fetchJiraAssignableUsers() {
+async function fetchJiraAssignableUsers(onProgress) {
   if (!JC.projectKey) throw new Error('プロジェクトキーが未設定です');
-  const data = await jiraApi(`/user/assignable/search?project=${encodeURIComponent(JC.projectKey)}&maxResults=200`);
-  return Array.isArray(data) ? data : [];
+  const all = [];
+  const pageSize = 200;
+  let startAt = 0;
+  while (true) {
+    const data = await jiraApi(`/user/assignable/search?project=${encodeURIComponent(JC.projectKey)}&maxResults=${pageSize}&startAt=${startAt}`);
+    if (!Array.isArray(data) || data.length === 0) break;
+    all.push(...data);
+    if (onProgress) onProgress(all.length);
+    if (data.length < pageSize) break;
+    startAt += all.length;
+  }
+  return all;
 }
 
 async function jiraApi(path, opts = {}) {
@@ -1456,9 +1466,9 @@ document.getElementById('btn-jira-push').addEventListener('click', pushToJira);
 
 document.getElementById('btn-jira-users').addEventListener('click', async () => {
   const btn = document.getElementById('btn-jira-users');
-  btn.textContent = '取得中…'; btn.disabled = true;
+  btn.textContent = '取得中… 0名'; btn.disabled = true;
   try {
-    jiraUsers = await fetchJiraAssignableUsers();
+    jiraUsers = await fetchJiraAssignableUsers(n => { btn.textContent = `取得中… ${n}名`; });
     renderJiraPeopleMap();
     btn.textContent = `${jiraUsers.length} 名取得 ✓`;
     setTimeout(() => { btn.textContent = 'JIRA ユーザー取得'; btn.disabled = false; }, 2000);
