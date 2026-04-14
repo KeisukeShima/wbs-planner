@@ -1250,6 +1250,21 @@ function initJiraTab() {
   if (typeof renderJiraPeopleMap === 'function') renderJiraPeopleMap();
 }
 
+async function testJiraConnection() {
+  const btn = document.getElementById('btn-jira-test');
+  const out = document.getElementById('jira-test-result');
+  btn.textContent = 'テスト中…'; btn.disabled = true; out.innerHTML = '';
+  try {
+    const me = await jiraApi('/myself');
+    out.innerHTML = `<div class="jira-msg ok">✓ 接続成功: ${esc(me.displayName)} (${esc(me.emailAddress)})</div>`;
+  } catch(e) {
+    out.innerHTML = `<div class="jira-msg err">✗ ${esc(e.message)}<br><small>CORS エラーの場合はローカルサーバーから開いてください（python3 -m http.server）</small></div>`;
+  }
+  btn.textContent = '接続テスト'; btn.disabled = false;
+}
+
+document.getElementById('btn-jira-test').addEventListener('click', testJiraConnection);
+
 document.getElementById('j-site').addEventListener('input',  e => { JC.siteUrl    = e.target.value.trim(); saveJiraConfig(); });
 document.getElementById('j-email').addEventListener('input', e => { JC.email      = e.target.value.trim(); saveJiraConfig(); });
 document.getElementById('j-token').addEventListener('input', e => { JC.apiToken   = e.target.value.trim(); saveJiraConfig(); });
