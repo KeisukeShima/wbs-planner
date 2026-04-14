@@ -922,6 +922,7 @@ function renderPeopleList() {
           </div>
         </div>
         <div class="fg"><label>備考</label><input type="text" value="${esc(p.note||'')}" data-pi="${i}" data-pf="note"></div>
+        <div class="fg"><label>JIRA ユーザー名</label><input type="text" value="${esc(p.jiraUser||'')}" data-pi="${i}" data-pf="jiraUser" placeholder="例: alice@example.com"></div>
       </div>
     </div>
   `).join('');
