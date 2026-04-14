@@ -157,11 +157,6 @@ tbody tr.erow td{background:#FAF5FF}
           <label class="radio-item"><input type="radio" name="ganttUnit" value="months"> 月</label>
         </div>
       </div>
-      <div class="fg">
-        <label>JIRA Epic キー</label>
-        <input type="text" id="f-epic-key" placeholder="例: PROJ-1">
-      </div>
-
       <hr class="divider">
 
       <div class="sec-title">
@@ -191,7 +186,6 @@ tbody tr.erow td{background:#FAF5FF}
   <div class="sb-foot">
     <button class="btn btn-primary" id="btn-html">HTML 出力</button>
     <button class="btn btn-secondary" id="btn-png">PNG 出力</button>
-    <button class="btn btn-secondary" id="btn-jira-csv">JIRA CSV</button>
     <button class="btn btn-secondary" id="btn-json-save">JSON 保存</button>
     <label class="btn btn-secondary" style="cursor:pointer">JSON 読込<input type="file" id="f-json-load" accept=".json" style="display:none"></label>
   </div>
@@ -762,7 +756,6 @@ function initProjectForm() {
   document.getElementById('f-eval-val').value = C.evalPeriod.value;
   document.getElementById('f-eval-unit').value= C.evalPeriod.unit;
   document.querySelector(`input[name="ganttUnit"][value="${C.ganttUnit}"]`).checked = true;
-  document.getElementById('f-epic-key').value = C.epicKey || '';
 }
 document.getElementById('f-name').addEventListener('input', e => { C.projectName = e.target.value; render(); });
 document.getElementById('f-start').addEventListener('change', e => { C.startDate = e.target.value; render(); });
@@ -771,7 +764,6 @@ document.getElementById('f-eval-val').addEventListener('input', e => { C.evalPer
 document.getElementById('f-eval-unit').addEventListener('change', e => { C.evalPeriod.unit = e.target.value; render(); });
 document.querySelectorAll('input[name="ganttUnit"]').forEach(r =>
   r.addEventListener('change', e => { if(e.target.checked){ C.ganttUnit = e.target.value; render(); } }));
-document.getElementById('f-epic-key').addEventListener('input', e => { C.epicKey = e.target.value; saveConfig(); });
 
 // ═══════════════════════════════════════════════════════════
 //  EDITOR — HOLIDAYS
@@ -922,7 +914,6 @@ function renderPeopleList() {
           </div>
         </div>
         <div class="fg"><label>備考</label><input type="text" value="${esc(p.note||'')}" data-pi="${i}" data-pf="note"></div>
-        <div class="fg"><label>JIRA ユーザー名</label><input type="text" value="${esc(p.jiraUser||'')}" data-pi="${i}" data-pf="jiraUser" placeholder="例: alice@example.com"></div>
       </div>
     </div>
   `).join('');
@@ -1164,85 +1155,6 @@ function buildViewerHTML() {
   ];
   return lines.join('\n');
 }
-
-// ── JIRA CSV エクスポート ──
-function generateJiraCSV() {
-  let scheduled;
-  try { scheduled = runSchedule(); } catch(e) { alert('スケジューリングエラー: ' + e.message); return; }
-  const { tasks } = scheduled;
-
-  const jiraUser = name => {
-    const p = C.people.find(x => x.name === name);
-    return p ? (p.jiraUser || p.name) : name;
-  };
-
-  const COLS = ['Issue Type','Summary','Epic Link','Parent','Assignee',
-                'Start Date','Due Date','Story Points','Description','Labels'];
-  const rows = [COLS];
-
-  const itemGroups = {};
-  tasks.forEach(t => { if (!itemGroups[t.itemIdx]) itemGroups[t.itemIdx] = []; itemGroups[t.itemIdx].push(t); });
-
-  C.items.forEach((item, iIdx) => {
-    const phaseTasks = itemGroups[iIdx] || [];
-    const wbsItem    = `${iIdx + 1}`;
-    const taskSummary = `${wbsItem} ${item.name}`;
-
-    const starts = phaseTasks.filter(t => t.startDate).map(t => t.startDate);
-    const ends   = phaseTasks.filter(t => t.endDate).map(t => t.endDate);
-    const taskStart  = starts.length ? fmt(starts.reduce((a,b) => a < b ? a : b)) : '';
-    const taskEnd    = ends.length   ? fmt(ends.reduce((a,b)   => a > b ? a : b)) : '';
-    const totalDays  = phaseTasks.filter(t => !t.isBackground).reduce((s, t) => s + t.totalDays, 0);
-    const firstPhase = phaseTasks.find(t => !t.isBackground && t.assignedPeople.length > 0);
-    const taskAssignee = firstPhase ? jiraUser(firstPhase.assignedPeople[0]) : '';
-    const taskDesc   = [
-      item.category ? `カテゴリ: ${item.category}` : '',
-      item.note     ? `メモ: ${item.note}`         : '',
-    ].filter(Boolean).join('\n');
-
-    rows.push(['Task', taskSummary, C.epicKey||'', '', taskAssignee,
-               taskStart, taskEnd, totalDays, taskDesc, item.category||'']);
-
-    phaseTasks.forEach(t => {
-      const pt = C.phaseTypes.find(x => x.name === t.phaseType);
-      let assignee = '';
-      if (!t.isBackground) {
-        assignee = t.requireAll
-          ? t.assignedPeople.map(n => jiraUser(n)).join(',')
-          : (t.assignedPeople.length ? jiraUser(t.assignedPeople[0]) : '');
-      }
-      const subDesc = [
-        pt ? `担当チーム: ${pt.team}` : '',
-        `稼働日数: ${t.totalDays}日`,
-        t.isBackground ? '（バックグラウンドタスク）' : '',
-      ].filter(Boolean).join('\n');
-
-      rows.push(['Sub-task', `${t.wbsNo} ${t.phaseType} — ${t.itemName}`,
-                 '', taskSummary, assignee,
-                 t.startDate ? fmt(t.startDate) : '',
-                 t.endDate   ? fmt(t.endDate)   : '',
-                 t.totalDays, subDesc, pt ? pt.team : '']);
-    });
-  });
-
-  const csvStr = rows.map(row =>
-    row.map(cell => {
-      const s = String(cell ?? '');
-      return (s.includes(',') || s.includes('"') || s.includes('\n'))
-        ? `"${s.replace(/"/g,'""')}"` : s;
-    }).join(',')
-  ).join('\r\n');
-
-  dl(new Blob(['\uFEFF' + csvStr], { type:'text/csv;charset=utf-8;' }),
-     `${C.projectName||'gantt'}.csv`, 'text/csv');
-}
-
-document.getElementById('btn-jira-csv').addEventListener('click', () => {
-  if (!C.epicKey) {
-    if (!confirm('Epic キーが未設定です。このまま続行しますか？\n（Epic Link 列が空になります）')) return;
-  }
-  generateJiraCSV();
-});
 
 // ── PNG エクスポート ──
 document.getElementById('btn-png').addEventListener('click', async () => {
