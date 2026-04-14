@@ -22,6 +22,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Hiragino Sans',san
 
 /* ── Preview ── */
 #preview{flex:1;overflow:auto;padding:24px;display:flex;flex-direction:column;gap:14px}
+#export-area{display:flex;flex-direction:column;gap:14px;background:#F3F4F6;padding:0}
 
 /* ── Forms ── */
 .fg{margin-bottom:12px}
@@ -197,17 +198,19 @@ tbody tr.erow td{background:#FAF5FF}
     <div id="pv-sub" style="font-size:.84rem;color:#6B7280"></div>
   </div>
   <div id="warn-box"></div>
-  <div class="card" id="gantt-card">
-    <div class="card-header">ガントチャート</div>
-    <div class="chart-scroll"><svg id="gantt"></svg></div>
-    <div class="legend" id="legend"></div>
-  </div>
-  <div class="card">
-    <div class="card-header">スケジュールサマリー</div>
-    <table>
-      <thead><tr><th>アイテム / 工程</th><th>担当者</th><th>開始日</th><th>終了日</th><th>営業日数</th></tr></thead>
-      <tbody id="tbody"></tbody>
-    </table>
+  <div id="export-area">
+    <div class="card" id="gantt-card">
+      <div class="card-header">ガントチャート</div>
+      <div class="chart-scroll"><svg id="gantt"></svg></div>
+      <div class="legend" id="legend"></div>
+    </div>
+    <div class="card">
+      <div class="card-header">スケジュールサマリー</div>
+      <table>
+        <thead><tr><th>アイテム / 工程</th><th>担当者</th><th>開始日</th><th>終了日</th><th>営業日数</th></tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
   </div>
 </main>
 
@@ -1158,7 +1161,7 @@ document.getElementById('btn-png').addEventListener('click', async () => {
   btn.textContent = '生成中…'; btn.disabled = true;
   try {
     if (!window.html2canvas) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
-    const canvas = await window.html2canvas(document.getElementById('gantt-card'), { scale:2, useCORS:true, backgroundColor:'#ffffff' });
+    const canvas = await window.html2canvas(document.getElementById('export-area'), { scale:2, useCORS:true, backgroundColor:'#ffffff' });
     canvas.toBlob(blob => dl(blob, `${C.projectName||'gantt'}.png`, 'image/png'), 'image/png');
     btn.textContent = 'PNG 出力'; btn.disabled = false;
   } catch(e) {
