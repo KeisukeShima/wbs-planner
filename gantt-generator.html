@@ -157,6 +157,10 @@ tbody tr.erow td{background:#FAF5FF}
           <label class="radio-item"><input type="radio" name="ganttUnit" value="months"> 月</label>
         </div>
       </div>
+      <div class="fg">
+        <label>JIRA Epic キー</label>
+        <input type="text" id="f-epic-key" placeholder="例: PROJ-1">
+      </div>
 
       <hr class="divider">
 
@@ -187,6 +191,7 @@ tbody tr.erow td{background:#FAF5FF}
   <div class="sb-foot">
     <button class="btn btn-primary" id="btn-html">HTML 出力</button>
     <button class="btn btn-secondary" id="btn-png">PNG 出力</button>
+    <button class="btn btn-secondary" id="btn-jira-csv">JIRA CSV</button>
     <button class="btn btn-secondary" id="btn-json-save">JSON 保存</button>
     <label class="btn btn-secondary" style="cursor:pointer">JSON 読込<input type="file" id="f-json-load" accept=".json" style="display:none"></label>
   </div>
