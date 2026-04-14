@@ -1,4 +1,4 @@
-# ガントチャート ジェネレーター — 要件定義・設計書
+# WBS・ガントチャート → JIRA 連携ツール — 要件定義・設計書
 
 ## 概要
 
@@ -62,7 +62,7 @@
 | FR-3-3 | フェーズに「許可担当者（allowedPeople）」を指定できる |
 | FR-3-4 | `requireAll` フラグで複数担当者の同時着手を要求できる |
 | FR-3-5 | フェーズタイプ未指定の場合、担当可能な人を自動割り付ける |
-| FR-3-6 | 担当者に JIRA ユーザー名（メールアドレスまたはユーザー名）を設定できる。空欄時は `name` を代用する。 |
+| FR-3-6 | 担当者に JIRA アカウント ID を設定できる（JIRA タブの「ユーザー取得」で自動マッピング）。空欄時は Assignee 未設定。 |
 
 ---
 
@@ -109,30 +109,28 @@
 | FR-6-1 | 現在の設定を埋め込んだスタンドアロン HTML をエクスポートできる |
 | FR-6-2 | ガントチャートとスケジュールサマリーを PNG としてダウンロードできる |
 | FR-6-3 | 設定を JSON ファイルとして保存・読み込みできる |
-| FR-6-4 | JIRA 課題インポート用の CSV をエクスポートできる（Task / Sub-task 階層、BOM 付き UTF-8） |
+| FR-6-4 | JIRA REST API（Atlassian Cloud）経由で課題を直接作成できる（Task / Sub-task 階層、管理者権限不要） |
 
-**FR-6-4 補足 — JIRA CSV フォーマット:**
+**FR-6-4 補足 — JIRA REST API 連携:**
 
-アイテム = Task、フェーズ = Sub-task として出力する。行の並びは Task → 配下 Sub-task のインターリーブ順。
+JIRA タブで接続情報を設定し「JIRA に登録」ボタンで実行。アイテム = Task、フェーズ = Sub-task の順に逐次 POST する（Sub-task の parent に Task の key が必要なため 2 パス）。
 
-| 列名 | Task（アイテム） | Sub-task（フェーズ） |
+| フィールド | Task（アイテム） | Sub-task（フェーズ） |
 | ---- | ---- | ---- |
-| `Issue Type` | `Task` | `Sub-task` |
-| `Summary` | `1 コア機能A` | `1.1 要件定義 — コア機能A` |
-| `Epic Link` | epicKey（空欄可） | 空 |
-| `Parent` | 空 | 親 Task の Summary と一致 |
-| `Assignee` | 最初のフェーズ担当者の jiraUser | 当該フェーズ担当者の jiraUser |
-| `Start Date` | アイテム開始日（YYYY-MM-DD） | フェーズ開始日 |
-| `Due Date` | アイテム終了日（YYYY-MM-DD） | フェーズ終了日 |
-| `Story Points` | 全フェーズ合計工数（日数） | フェーズ工数（日数） |
-| `Description` | `カテゴリ: XX\nメモ: YY` | `担当チーム: XX\n稼働日数: N日` |
-| `Labels` | アイテムのカテゴリ | フェーズタイプのチーム名 |
+| `issuetype` | `Task` | `Sub-task` |
+| `summary` | `1 コア機能A` | `1.1 要件定義 — コア機能A` |
+| `customfield_10014` | epicKey（空欄可） | 設定しない |
+| `parent` | 設定しない | 親 Task の key |
+| `assignee.accountId` | 最初の非 background フェーズ担当者の jiraUser | 当該フェーズ担当者の jiraUser |
+| `description`（ADF） | `カテゴリ: XX\nメモ: YY\n稼働日数（合計）: N日` | `担当チーム: XX\n稼働日数: N日` |
 
 特殊ケース：
 
-- `background: true` → Assignee 空、Description に `（バックグラウンドタスク）` 付記
-- `requireAll: true` → Assignee に担当者全員をカンマ区切りで列挙（JIRA 側で要確認）
-- `epicKey` 未設定 → `confirm()` で続行確認後、Epic Link 空のまま出力
+- `background: true` → assignee 省略、description に `（バックグラウンドタスク）` 付記
+- `requireAll: true` かつ assignedPeople > 1 → description に `全担当者: name1, name2` 付記（JIRA の assignee は 1 名のみ）
+- `epicKey` 未設定 → `customfield_10014` フィールドを省略
+
+JIRA 接続情報（siteUrl・email・apiToken・projectKey）は localStorage キー `'wbs-jira-cfg'` に保存し、プロジェクト設定 `C` の JSON エクスポートには含めない。
 
 ---
 
@@ -176,8 +174,10 @@ wbs-planner.html（単一ファイル）
 │   ├── ガントチャート（SVG）
 │   └── スケジュールサマリー表
 │
+│   └── Tab: JIRA             ← 接続設定・担当者マッピング・課題登録
+│
 └── Footer ボタン
-    └── [HTML出力]  [PNG出力]  [JIRA CSV]  [JSON保存]  [JSON読込]
+    └── [HTML出力]  [PNG出力]  [JSON保存]  [JSON読込]
 ```
 
 ### データスキーマ（JSON）
@@ -214,7 +214,7 @@ wbs-planner.html（単一ファイル）
       "availableFrom": "YYYY-MM-DD | null",
       "utilization": 1.0,                  // 稼働率 0.0〜1.0
       "note": "string",
-      "jiraUser": "string"                 // JIRA ユーザー名 or メール。空欄時は name を使用
+      "jiraUser": "string"                 // JIRA アカウント ID（accountId）。JIRA タブで自動設定。空欄時は Assignee 省略
     }
   ],
 
@@ -237,8 +237,8 @@ wbs-planner.html（単一ファイル）
     }
   ],
 
-  // JIRA 連携（FR-1-4）
-  "epicKey": "PROJ-1",                     // JIRA Epic キー。空欄可
+  // JIRA 連携（FR-1-4）: epicKey は C に保存（JSON エクスポートに含む）
+  "epicKey": "PROJ-1",                     // JIRA Epic キー。空欄可。JIRA タブで設定
 
   // リリース評価フェーズ表示設定
   "evalPhase": { "name": "リリース評価", "color": "#8B5CF6" }
@@ -278,7 +278,7 @@ wbs-planner.html（単一ファイル）
 | **HTML** | 現在の config を JSON シリアライズして `<script>` に埋め込み、スタンドアロン閲覧 HTML を Blob でダウンロード |
 | **PNG** | `html2canvas`（CDN から遅延ロード）で `#export-area`（ガントチャート + サマリー）をキャプチャし `canvas.toBlob()` でダウンロード |
 | **JSON** | config を `JSON.stringify` して Blob ダウンロード。読込は `FileReader` で parse して反映 |
-| **JIRA CSV** | `runSchedule()` の結果から Task / Sub-task 行を生成し、BOM 付き UTF-8 CSV を Blob でダウンロード |
+| **JIRA REST API** | `runSchedule()` の結果から Task → Sub-task の順に Atlassian Cloud REST API v3 へ POST（`/rest/api/3/issue`）。Basic 認証（email + API トークン）。接続情報は `localStorage['wbs-jira-cfg']` に保存し JSON エクスポートには含めない。 |
 
 ### 祝日データ戦略
 
@@ -302,4 +302,4 @@ wbs-planner.html（単一ファイル）
 | **Phase 2** | JSON 保存・読込、HTML エクスポート |
 | **Phase 3** | PNG エクスポート（html2canvas 遅延ロード） |
 | **Phase 4** | 祝日自動取得ボタン、localStorage 永続化 |
-| **Phase 5** | WBS 番号付番、JIRA CSV エクスポート（FR-1-4, FR-2-7, FR-3-6, FR-5-7, FR-6-4） |
+| **Phase 5** | WBS 番号付番（FR-2-7, FR-5-7）、JIRA REST API 連携（FR-1-4, FR-3-6, FR-6-4）: JIRA タブ・接続テスト・ユーザー取得・課題直接作成 |
