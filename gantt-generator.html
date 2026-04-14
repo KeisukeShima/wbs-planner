@@ -260,8 +260,8 @@ const DEFAULT_CONFIG = {
     { name: 'ハードウェア調達', team: 'SI',  color: '#EC4899' },
   ],
   people: [
-    { name: '担当者A', team: 'チーム1', phases: ['要件定義','テストケース作成'], availableFrom: null, utilization: 1.0, note: '' },
-    { name: '担当者B', team: 'チーム2', phases: ['設計開発'], availableFrom: null, utilization: 1.0, note: '' },
+    { name: '担当者A', team: 'チーム1', phases: ['要件定義','テストケース作成'], availableFrom: null, utilization: 1.0, note: '', jiraUser: '' },
+    { name: '担当者B', team: 'チーム2', phases: ['設計開発'], availableFrom: null, utilization: 1.0, note: '', jiraUser: '' },
   ],
   items: [
     {
@@ -272,6 +272,7 @@ const DEFAULT_CONFIG = {
       ],
     },
   ],
+  epicKey:   '',
   evalPhase: { name: 'リリース評価', color: '#8B5CF6' },
 };
 
@@ -942,7 +943,7 @@ function renderPeopleList() {
 }
 
 document.getElementById('btn-add-person').addEventListener('click', () => {
-  C.people.push({ name:'新規担当者', team:'', phases:[], availableFrom:null, utilization:1.0, note:'' });
+  C.people.push({ name:'新規担当者', team:'', phases:[], availableFrom:null, utilization:1.0, note:'', jiraUser:'' });
   render(); renderPeopleList();
 });
 
