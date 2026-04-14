@@ -1254,8 +1254,7 @@ function initJiraTab() {
   document.getElementById('j-token').value = JC.apiToken;
   document.getElementById('j-pkey').value  = JC.projectKey;
   document.getElementById('f-epic-key').value = C.epicKey || '';
-  // renderJiraPeopleMap は Task 5 で定義されるため、存在確認してから呼ぶ
-  if (typeof renderJiraPeopleMap === 'function') renderJiraPeopleMap();
+  renderJiraPeopleMap();
 }
 
 function makeADF(text) {
@@ -1327,7 +1326,7 @@ async function pushToJira() {
       summary:     taskSummary,
       issuetype:   { name: 'Task' },
       description: makeADF(taskDesc),
-      ...(C.epicKey      ? { customfield_10014: C.epicKey }              : {}),
+      ...(C.epicKey      ? { customfield_10014: C.epicKey }              : {}), // Atlassian Cloud classic "Epic Link" field
       ...(taskAccountId  ? { assignee: { accountId: taskAccountId } }    : {}),
     }};
 
