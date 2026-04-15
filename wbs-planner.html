@@ -251,7 +251,13 @@ tbody tr.erow td{background:#FAF5FF}
         <span>必須フィールド設定</span>
         <button class="btn btn-secondary btn-sm" id="btn-jira-fields">フィールド取得</button>
       </div>
-      <p style="font-size:.72rem;color:#9CA3AF;margin-bottom:8px">プロジェクトで必須のカスタムフィールドを設定します。「フィールド取得」で一覧を取得してください。</p>
+      <p style="font-size:.72rem;color:#9CA3AF;margin-bottom:6px">「フィールド取得」でプロジェクトの必須フィールドを取得します。</p>
+      <div class="fg" style="margin-bottom:6px">
+        <label>課題タイプ（Task に相当するもの）</label>
+        <select id="j-issuetype" style="width:100%;padding:7px 9px;border:1px solid #D1D5DB;border-radius:6px;font-size:.84rem">
+          <option value="">-- フィールド取得で自動入力 --</option>
+        </select>
+      </div>
       <div id="jira-custom-fields"></div>
 
       <button class="btn btn-primary" id="btn-jira-push" style="margin-top:8px">JIRA に登録</button>
@@ -1330,6 +1336,15 @@ function initJiraTab() {
   document.getElementById('j-pkey').value  = JC.projectKey;
   document.getElementById('j-proxy').value = JC.proxyUrl;
   document.getElementById('f-epic-key').value = C.epicKey || '';
+  // 保存済みの課題タイプをドロップダウンに反映
+  const itSel = document.getElementById('j-issuetype');
+  if (JC.issueTypeId && JC.issueTypeName) {
+    // 既存 option が無ければ追加
+    if (!itSel.querySelector(`option[value="${JC.issueTypeId}"]`)) {
+      itSel.innerHTML = `<option value="${JC.issueTypeId}">${JC.issueTypeName}</option>`;
+    }
+    itSel.value = JC.issueTypeId;
+  }
   renderJiraPeopleMap();
   renderCustomFields();
 }
@@ -1395,33 +1410,90 @@ function renderCustomFields() {
   });
 }
 
+async function fetchIssueTypes() {
+  const pkey = encodeURIComponent(JC.projectKey);
+  // 新 API を試し、失敗したら旧 API にフォールバック
+  try {
+    const r = await jiraApi(`/issue/createmeta/${pkey}/issuetypes?maxResults=50`);
+    // レスポンス形式は issueTypes[] / values[] / 配列 のどれか
+    const list = Array.isArray(r) ? r : (r.issueTypes ?? r.values ?? []);
+    if (list.length > 0) return list;
+  } catch {}
+  // 旧 createmeta API フォールバック
+  const r2 = await jiraApi(`/issue/createmeta?projectKeys=${JC.projectKey}&expand=projects.issuetypes`);
+  const proj = (r2.projects ?? [])[0];
+  return proj ? (proj.issuetypes ?? proj.issueTypes ?? []) : [];
+}
+
+async function fetchFieldsForIssueType(issueTypeId) {
+  const pkey = encodeURIComponent(JC.projectKey);
+  // 新 API（ページネーション）
+  try {
+    let all = [], startAt = 0;
+    while (true) {
+      const r = await jiraApi(`/issue/createmeta/${pkey}/issuetypes/${issueTypeId}/fields?maxResults=100&startAt=${startAt}`);
+      const page = r.values ?? (Array.isArray(r) ? r : []);
+      all.push(...page);
+      if (page.length < 100) break;
+      startAt += all.length;
+    }
+    if (all.length > 0) return all;
+  } catch {}
+  // 旧 createmeta API フォールバック
+  const r2 = await jiraApi(`/issue/createmeta?projectKeys=${JC.projectKey}&issuetypeIds=${issueTypeId}&expand=projects.issuetypes.fields`);
+  const it = ((r2.projects ?? [])[0]?.issuetypes ?? [])[0];
+  if (!it?.fields) return [];
+  return Object.entries(it.fields).map(([key, v]) => ({ ...v, fieldId: key }));
+}
+
 async function fetchRequiredFields() {
   const btn = document.getElementById('btn-jira-fields');
+  const sel = document.getElementById('j-issuetype');
   const container = document.getElementById('jira-custom-fields');
   btn.disabled = true; btn.textContent = '取得中…';
+  container.innerHTML = '';
   try {
-    // Step1: issue type 一覧
-    const itResp = await jiraApi(`/issue/createmeta/${encodeURIComponent(JC.projectKey)}/issuetypes`);
-    const itList = itResp.issueTypes ?? itResp.values ?? [];
-    const taskType = itList.find(t => t.name === 'Task');
-    if (!taskType) throw new Error('Task issue type が見つかりませんでした');
+    // Step1: 課題タイプ一覧を取得してドロップダウンを更新
+    const itList = await fetchIssueTypes();
+    if (itList.length === 0) throw new Error('課題タイプが取得できませんでした');
 
-    // Step2: Task のフィールド一覧（paginate）
-    let allFields = [], startAt = 0;
-    while (true) {
-      const resp = await jiraApi(`/issue/createmeta/${encodeURIComponent(JC.projectKey)}/issuetypes/${taskType.id}/fields?maxResults=100&startAt=${startAt}`);
-      const page = resp.values ?? [];
-      allFields.push(...page);
-      if (page.length < 100) break;
-      startAt += page.length;
-    }
+    const prevVal = sel.value;
+    sel.innerHTML = itList.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
 
+    // 保存済みの値 or "Task"/"タスク" を優先選択
+    const preferred = itList.find(t => t.id === (JC.issueTypeId ?? '') ) ??
+                      itList.find(t => /^task$/i.test(t.name)) ??
+                      itList.find(t => t.name === 'タスク') ??
+                      itList[0];
+    sel.value = preferred?.id ?? itList[0]?.id;
+
+    // Step2: 選択された課題タイプのフィールドを取得
+    await loadFieldsForSelected();
+  } catch(e) {
+    container.innerHTML = `<p style="color:#EF4444;font-size:.8rem;padding:6px 0">エラー: ${e.message}</p>`;
+  } finally {
+    btn.disabled = false; btn.textContent = 'フィールド取得';
+  }
+}
+
+async function loadFieldsForSelected() {
+  const sel = document.getElementById('j-issuetype');
+  const container = document.getElementById('jira-custom-fields');
+  const issueTypeId = sel.value;
+  if (!issueTypeId) return;
+
+  JC.issueTypeId = issueTypeId;
+  JC.issueTypeName = sel.options[sel.selectedIndex]?.text ?? 'Task';
+  saveJiraConfig();
+
+  container.innerHTML = '<p style="font-size:.8rem;color:#6B7280;padding:4px 0">フィールド取得中…</p>';
+  try {
+    const allFields = await fetchFieldsForIssueType(issueTypeId);
     const required = allFields.filter(f => f.required && !HANDLED_FIELDS.has(f.fieldId ?? f.key));
     if (required.length === 0) {
       container.innerHTML = '<p style="font-size:.8rem;color:#6B7280;padding:6px 0">必須カスタムフィールドはありません。</p>';
       JC.customFields = []; saveJiraConfig(); return;
     }
-
     JC.customFields = required.map(f => {
       const id = f.fieldId ?? f.key;
       const existing = (JC.customFields || []).find(x => x.id === id);
@@ -1430,9 +1502,7 @@ async function fetchRequiredFields() {
     saveJiraConfig();
     renderCustomFields();
   } catch(e) {
-    container.innerHTML = `<p style="color:#EF4444;font-size:.8rem;padding:6px 0">エラー: ${e.message}</p>`;
-  } finally {
-    btn.disabled = false; btn.textContent = 'フィールド取得';
+    container.innerHTML = `<p style="color:#EF4444;font-size:.8rem;padding:6px 0">フィールド取得エラー: ${e.message}</p>`;
   }
 }
 
@@ -1517,7 +1587,7 @@ async function pushToJira() {
     const taskBody = { fields: {
       project:     { key: JC.projectKey },
       summary:     taskSummary,
-      issuetype:   { name: 'Task' },
+      issuetype:   { name: JC.issueTypeName || 'Task' },
       description: makeADF(taskDesc),
       ...(C.epicKey      ? { customfield_10014: C.epicKey }              : {}), // Atlassian Cloud classic "Epic Link" field
       ...(taskAccountId  ? { assignee: { accountId: taskAccountId } }    : {}),
@@ -1631,6 +1701,7 @@ async function testJiraConnection() {
 
 document.getElementById('btn-jira-test').addEventListener('click', testJiraConnection);
 document.getElementById('btn-jira-fields').addEventListener('click', fetchRequiredFields);
+document.getElementById('j-issuetype').addEventListener('change', loadFieldsForSelected);
 
 document.getElementById('btn-jira-push').addEventListener('click', pushToJira);
 
