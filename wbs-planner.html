@@ -493,6 +493,8 @@ function runSchedule() {
     (release.items || []).forEach((item, iIdx) => {
       let remaining = item.phases.reduce((s, p) => s + p.days, 0);
       item.phases.forEach((phase, pIdx) => {
+        const ptDef = C.phaseTypes.find(pt => pt.name === phase.type);
+        const isEvalPhase = !!(ptDef && ptDef.inEval);
         tasks.push({
           id:             `${rIdx}-${iIdx}-${pIdx}`,
           releaseIdx:     rIdx,
@@ -507,9 +509,10 @@ function runSchedule() {
           predId:         pIdx > 0 ? `${rIdx}-${iIdx}-${pIdx-1}` : null,
           priority:       remaining,
           releasePriority: C.releases.length - rIdx, // 先頭リリースを優先
-          releaseStartDate: parse(release.startDate || C.startDate),
+          releaseStartDate: isEvalPhase ? meta.evalStart : parse(release.startDate || C.startDate),
           evalStart:      meta.evalStart,
           isBackground:   !!phase.background,
+          isEvalPhase:    isEvalPhase,
           isFixed:        !!phase.fixedStart,
           fixedStartDate: phase.fixedStart ? parse(phase.fixedStart) : null,
           allowedPeople:  phase.allowedPeople || null,
@@ -632,7 +635,7 @@ function runSchedule() {
   // ── 警告収集 ──
   const warnings = [];
   tasks.forEach(t => {
-    if (t.endDate && t.endDate >= t.evalStart && !t.isBackground) {
+    if (t.endDate && t.endDate >= t.evalStart && !t.isBackground && !t.isEvalPhase) {
       const rm = releaseMeta[t.releaseIdx];
       if (rm.showEvalZone)
         warnings.push(`[${rm.name}]「${t.itemName} / ${t.phaseType}」がリリース評価開始（${fmtJP(t.evalStart)}）を超過しています。`);
@@ -1073,6 +1076,12 @@ function renderPhaseTypesList() {
             <span style="font-size:.82rem;color:#6B7280">${pt.color}</span>
           </div>
         </div>
+        <div class="fg">
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+            <input type="checkbox" ${pt.inEval?'checked':''} data-pt="${i}" data-f="inEval">
+            <span>リリース評価中に実施（evalStart 以降にスケジュール・超過警告なし）</span>
+          </label>
+        </div>
       </div>
     </div>
   `).join('');
@@ -1083,7 +1092,7 @@ function renderPhaseTypesList() {
     const ev = inp.type==='color' ? 'input' : 'change';
     inp.addEventListener(ev, e => {
       const i=parseInt(e.target.dataset.pt), f=e.target.dataset.f;
-      C.phaseTypes[i][f] = e.target.value;
+      C.phaseTypes[i][f] = e.target.type==='checkbox' ? e.target.checked : e.target.value;
       render();
       // 工程「名」変更時のみ他リストの表示を更新（色・チーム変更は不要）
       if (f === 'name') { renderPhaseTypesList(); renderPeopleList(); renderReleasesList(); }
@@ -1098,7 +1107,7 @@ function renderPhaseTypesList() {
 
 document.getElementById('btn-add-pt').addEventListener('click', () => {
   const cls = ['#3B82F6','#10B981','#F59E0B','#EF4444','#8B5CF6','#EC4899','#06B6D4'];
-  C.phaseTypes.push({ name:'新工程', team:'', color: cls[C.phaseTypes.length % cls.length] });
+  C.phaseTypes.push({ name:'新工程', team:'', color: cls[C.phaseTypes.length % cls.length], inEval: false });
   render(); renderPhaseTypesList();
 });
 
