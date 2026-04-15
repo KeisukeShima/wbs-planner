@@ -205,6 +205,10 @@ tbody tr.erow td{background:#FAF5FF}
         <button class="btn btn-secondary btn-sm" id="btn-add-com">追加</button>
       </div>
       <div class="h-tags" id="com-tags"></div>
+
+      <hr class="divider">
+
+      <button class="btn btn-danger" id="btn-reset" style="width:100%;padding:8px 13px;font-size:.82rem">プロジェクトをリセット</button>
     </div>
 
     <!-- ▸ JIRA -->
@@ -872,6 +876,18 @@ function renderTagList(id, dates, isCompany, onRemove) {
   el.querySelectorAll('.h-tag button').forEach(btn =>
     btn.addEventListener('click', () => onRemove(btn.closest('.h-tag').dataset.d)));
 }
+
+document.getElementById('btn-reset').addEventListener('click', () => {
+  if (!confirm('プロジェクトの全データをリセットしますか？\nこの操作は取り消せません。')) return;
+  localStorage.removeItem('gantt-gen-cfg');
+  C = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+  saveConfig();
+  initProjectForm();
+  renderPhaseTypesList();
+  renderPeopleList();
+  renderItemsList();
+  render();
+});
 
 document.getElementById('btn-add-nat').addEventListener('click', () => {
   const v = document.getElementById('f-nat-date').value;
