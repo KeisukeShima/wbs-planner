@@ -1360,8 +1360,25 @@ function wireReleaseEvents(el, pns, ppl) {
       const ri = parseInt(e.target.dataset.ri);
       const f  = e.target.dataset.rf;
       const r  = C.releases[ri];
-      if (f === 'name')            { r.name = inp.value; }
-      else if (f === 'color')      { r.color = inp.value; }
+      if (f === 'name') {
+        r.name = inp.value;
+        // ヘッダーのラベルだけを直接更新（フォーカスを失わないよう全再描画を避ける）
+        const wrap = el.querySelector(`.release-wrap[data-ri="${ri}"]`);
+        if (wrap) wrap.querySelector(':scope > .li-head .li-name').textContent = inp.value;
+      }
+      else if (f === 'color') {
+        r.color = inp.value;
+        // ヘッダーの色関連スタイルだけ直接更新
+        const wrap = el.querySelector(`.release-wrap[data-ri="${ri}"]`);
+        if (wrap) {
+          wrap.style.setProperty('--rcolor-bg', `${inp.value}1a`);
+          wrap.style.borderColor = `${inp.value}55`;
+          const head = wrap.querySelector(':scope > .li-head');
+          head.style.background = `${inp.value}1a`;
+          wrap.querySelector(':scope > .li-head .swatch').style.background = inp.value;
+          wrap.querySelector(':scope > .li-head .li-name').style.color = inp.value;
+        }
+      }
       else if (f === 'startDate')  { r.startDate = inp.value; }
       else if (f === 'releaseDate'){ r.releaseDate = inp.value; }
       else if (f === 'showEvalZone') {
@@ -1374,7 +1391,6 @@ function wireReleaseEvents(el, pns, ppl) {
       else if (f === 'evalZoneColor')   { r.evalZone.color   = inp.value; }
       else if (f === 'epicKey')    { r.epicKey = inp.value; }
       render();
-      if (['name','color'].includes(f)) renderReleasesList();
     });
   });
 
