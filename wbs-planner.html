@@ -646,7 +646,7 @@ function runSchedule() {
 
     // ── ストール検知: ready タスクがあるが今日一件も着手できなかった日が続く場合は中断 ──
     const newStartCount = tasks.filter(t =>
-      t.status === 'inProgress' && t.startDate?.getTime() === d.getTime()
+      t.startDate?.getTime() === d.getTime()
     ).length;
     const readyRemaining = tasks.filter(t => t.status === 'ready').length;
     if (readyRemaining > 0 && newStartCount === 0) {
