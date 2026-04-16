@@ -1264,6 +1264,10 @@ function renderReleasesList() {
         <span class="swatch" style="background:${color}"></span>
         <span class="li-name" style="color:${color}">${esc(release.name)}</span>
         <span class="li-sub">${esc(dateRange)}</span>
+        <button class="btn btn-secondary btn-sm" data-mv-release="${rIdx}" data-dir="-1"
+          onclick="event.stopPropagation()" ${rIdx === 0 ? 'disabled' : ''} style="padding:2px 7px">↑</button>
+        <button class="btn btn-secondary btn-sm" data-mv-release="${rIdx}" data-dir="1"
+          onclick="event.stopPropagation()" ${rIdx === (C.releases.length - 1) ? 'disabled' : ''} style="padding:2px 7px">↓</button>
         <button class="btn btn-danger" data-del-release="${rIdx}" onclick="event.stopPropagation()">削除</button>
       </div>
       <div class="li-body">
@@ -1350,6 +1354,10 @@ function renderItemForm(rIdx, iIdx, item, pns, ppl) {
     <div class="li-head" onclick="toggleLI(this)">
       <span class="li-name">${esc(item.name)}</span>
       <span class="li-sub">${esc(item.category)}</span>
+      <button class="btn btn-secondary btn-sm" data-mv-item-ri="${rIdx}" data-mv-item-ii="${iIdx}" data-dir="-1"
+        onclick="event.stopPropagation()" ${iIdx === 0 ? 'disabled' : ''} style="padding:2px 7px">↑</button>
+      <button class="btn btn-secondary btn-sm" data-mv-item-ri="${rIdx}" data-mv-item-ii="${iIdx}" data-dir="1"
+        onclick="event.stopPropagation()" ${iIdx === (C.releases[rIdx].items.length - 1) ? 'disabled' : ''} style="padding:2px 7px">↓</button>
       <button class="btn btn-danger" data-del-item-ri="${rIdx}" data-del-item-ii="${iIdx}" onclick="event.stopPropagation()">削除</button>
     </div>
     <div class="li-body">
@@ -1480,6 +1488,16 @@ function wireReleaseEvents(el, pns, ppl) {
     });
   });
 
+  // ── リリース並び替え ──
+  el.querySelectorAll('[data-mv-release]').forEach(btn => btn.addEventListener('click', () => {
+    const ri  = parseInt(btn.dataset.mvRelease);
+    const dir = parseInt(btn.dataset.dir);
+    const to  = ri + dir;
+    if (to < 0 || to >= C.releases.length) return;
+    [C.releases[ri], C.releases[to]] = [C.releases[to], C.releases[ri]];
+    render(); renderReleasesList();
+  }));
+
   // ── リリース削除 ──
   el.querySelectorAll('[data-del-release]').forEach(btn => btn.addEventListener('click', () => {
     const ri = parseInt(btn.dataset.delRelease);
@@ -1501,6 +1519,17 @@ function wireReleaseEvents(el, pns, ppl) {
     const ii = parseInt(inp.dataset.ii);
     C.releases[ri].items[ii][inp.dataset.if] = inp.value;
     render();
+  }));
+
+  // ── アイテム並び替え ──
+  el.querySelectorAll('[data-mv-item-ri]').forEach(btn => btn.addEventListener('click', () => {
+    const ri  = parseInt(btn.dataset.mvItemRi);
+    const ii  = parseInt(btn.dataset.mvItemIi);
+    const dir = parseInt(btn.dataset.dir);
+    const to  = ii + dir;
+    if (to < 0 || to >= C.releases[ri].items.length) return;
+    [C.releases[ri].items[ii], C.releases[ri].items[to]] = [C.releases[ri].items[to], C.releases[ri].items[ii]];
+    render(); renderReleasesList();
   }));
 
   // ── アイテム削除 ──
