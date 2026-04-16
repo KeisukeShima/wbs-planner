@@ -812,12 +812,21 @@ function renderGantt(scheduled) {
     const ry = HDR_H + ri * ROW_H;
 
     if (row.kind === 'release') {
-      // リリース見出し行（識別色背景）
+      // リリース見出し行
       const color = row.meta.color || '#6D28D9';
-      g += `<rect x="0" y="${ry}" width="${totalW}" height="${RELEASE_ROW_H}" fill="${color}" opacity=".12"/>`;
-      g += `<rect x="0" y="${ry}" width="${LW}" height="${RELEASE_ROW_H}" fill="${color}" opacity=".2"/>`;
+      // ラベルパネル背景
+      g += `<rect x="0" y="${ry}" width="${LW}" height="${RELEASE_ROW_H}" fill="${color}" opacity=".18"/>`;
       g += `<text x="8" y="${ry+RELEASE_ROW_H/2+4}" fill="${color}" font-size="11" font-weight="700" font-family="sans-serif">▼ ${esc(trunc(row.meta.name, 18))}</text>`;
-      g += `<text x="${LW+6}" y="${ry+RELEASE_ROW_H/2+4}" fill="${color}" font-size="9" font-family="sans-serif">${row.meta.startDate} 〜 ${row.meta.releaseDate}</text>`;
+      // チャート部分: startDate〜releaseDate の期間バー
+      const rSX = LW + dateToX(parse(row.meta.startDate), vStart, unit);
+      const rEX = LW + dateToX(parse(row.meta.releaseDate), vStart, unit);
+      const barH = RELEASE_ROW_H - 8, barY = ry + 4;
+      if (rEX > rSX) {
+        g += `<rect x="${rSX}" y="${barY}" width="${rEX - rSX}" height="${barH}" rx="3" fill="${color}" opacity=".28"/>`;
+        if (rEX - rSX > 80)
+          g += `<text x="${(rSX+rEX)/2}" y="${barY+barH/2+3.5}" text-anchor="middle" fill="${color}" font-size="9" font-weight="700" font-family="sans-serif">${row.meta.startDate} 〜 ${row.meta.releaseDate}</text>`;
+        g += `<line x1="${rEX}" y1="${barY-2}" x2="${rEX}" y2="${barY+barH+2}" stroke="${color}" stroke-width="2" opacity=".85"/>`;
+      }
       g += `<line x1="0" y1="${ry}" x2="${totalW}" y2="${ry}" stroke="${color}" stroke-width=".8" opacity=".4"/>`;
 
     } else if (row.kind === 'hdr') {
@@ -1334,10 +1343,27 @@ function phaseForm(rIdx, iIdx, pIdx, ph, pns, ppl) {
     <div class="phase-head">
       <select data-pf="type" data-ri="${rIdx}" data-ii="${iIdx}" data-pj="${pIdx}"
         style="flex:1 1 0;min-width:0;padding:6px 8px;border:1px solid #D1D5DB;border-radius:5px;font-size:.82rem">${typeOpts}</select>
+      <button type="button" class="btn btn-secondary" data-toggle-pt-add data-ri="${rIdx}" data-ii="${iIdx}" data-pj="${pIdx}"
+        style="flex-shrink:0;padding:3px 7px;font-size:.72rem" title="新しい工程タイプを追加">＋型</button>
       <input type="number" min="1" value="${ph.days}" data-pf="days" data-ri="${rIdx}" data-ii="${iIdx}" data-pj="${pIdx}"
         style="flex-shrink:0;width:60px;padding:6px 8px;border:1px solid #D1D5DB;border-radius:5px;font-size:.82rem">
       <span style="flex-shrink:0;font-size:.75rem;color:#9CA3AF">日</span>
       <button type="button" class="btn btn-danger" data-del-ph-ri="${rIdx}" data-del-ph-ii="${iIdx}" data-del-ph-pj="${pIdx}" onclick="event.stopPropagation()" style="flex-shrink:0">×</button>
+    </div>
+    <div class="inline-pt-form" style="display:none;background:#F0FDF4;border:1px solid #BBF7D0;border-radius:6px;padding:8px 10px;margin-bottom:8px">
+      <div style="font-size:.75rem;font-weight:700;color:#166534;margin-bottom:6px">新しい工程タイプ</div>
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+        <input type="text" placeholder="工程タイプ名 *" data-new-pt-name
+          style="flex:1 1 100px;min-width:80px;padding:5px 8px;border:1px solid #BBF7D0;border-radius:5px;font-size:.82rem">
+        <input type="text" placeholder="チーム"  data-new-pt-team
+          style="flex:0 0 70px;padding:5px 8px;border:1px solid #BBF7D0;border-radius:5px;font-size:.82rem">
+        <input type="color" value="#3B82F6" data-new-pt-color
+          style="flex-shrink:0;width:36px;height:32px;padding:2px;border:1px solid #BBF7D0;border-radius:5px;cursor:pointer">
+        <button type="button" class="btn btn-primary" data-do-add-pt data-ri="${rIdx}" data-ii="${iIdx}" data-pj="${pIdx}"
+          style="flex-shrink:0;padding:5px 12px;font-size:.82rem">追加</button>
+        <button type="button" class="btn btn-secondary" data-cancel-pt-add
+          style="flex-shrink:0;padding:5px 8px;font-size:.82rem">×</button>
+      </div>
     </div>
     <div style="margin-bottom:7px">
       <div class="fg-label">許可担当者 <span style="color:#9CA3AF;font-weight:400;text-transform:none">（未選択 = 自動割当）</span></div>
@@ -1482,6 +1508,31 @@ function wireReleaseEvents(el, pns, ppl) {
     const pj = parseInt(btn.dataset.delPhPj);
     C.releases[ri].items[ii].phases.splice(pj, 1);
     render(); renderReleasesList();
+  }));
+
+  // ── 工程タイプ インライン追加 ──
+  el.querySelectorAll('[data-toggle-pt-add]').forEach(btn => btn.addEventListener('click', () => {
+    const form = btn.closest('.phase-wrap').querySelector('.inline-pt-form');
+    form.style.display = form.style.display === 'none' ? '' : 'none';
+  }));
+  el.querySelectorAll('[data-cancel-pt-add]').forEach(btn => btn.addEventListener('click', () => {
+    btn.closest('.inline-pt-form').style.display = 'none';
+  }));
+  el.querySelectorAll('[data-do-add-pt]').forEach(btn => btn.addEventListener('click', () => {
+    const form = btn.closest('.inline-pt-form');
+    const nameInp  = form.querySelector('[data-new-pt-name]');
+    const teamInp  = form.querySelector('[data-new-pt-team]');
+    const colorInp = form.querySelector('[data-new-pt-color]');
+    const name = nameInp.value.trim();
+    if (!name) { nameInp.focus(); return; }
+    if (!C.phaseTypes.some(pt => pt.name === name)) {
+      C.phaseTypes.push({ name, team: teamInp.value.trim(), color: colorInp.value, inEval: false });
+    }
+    const ri = parseInt(btn.dataset.ri);
+    const ii = parseInt(btn.dataset.ii);
+    const pj = parseInt(btn.dataset.pj);
+    C.releases[ri].items[ii].phases[pj].type = name;
+    render(); renderPhaseTypesList(); renderPeopleList(); renderReleasesList();
   }));
 
   // ── 固定開始日追加 ──
