@@ -1424,7 +1424,13 @@ function phaseForm(rIdx, iIdx, pIdx, ph, pns, ppl) {
     </div>
     ${hasFixed
       ? `<div class="fg" style="margin-bottom:0"><label>固定開始日</label>
-          <input type="date" value="${ph.fixedStart}" data-pf="fixedStart" data-ri="${rIdx}" data-ii="${iIdx}" data-pj="${pIdx}">
+          <div style="display:flex;gap:6px;align-items:center">
+            <input type="date" value="${ph.fixedStart}" data-pf="fixedStart" data-ri="${rIdx}" data-ii="${iIdx}" data-pj="${pIdx}"
+              style="flex:1;padding:7px 9px;border:1px solid #D1D5DB;border-radius:6px;font-size:.84rem">
+            <button type="button" class="btn btn-danger"
+              data-del-fixed-ri="${rIdx}" data-del-fixed-ii="${iIdx}" data-del-fixed-pj="${pIdx}"
+              onclick="event.stopPropagation()">× 削除</button>
+          </div>
         </div>`
       : `<button class="btn btn-secondary btn-sm" style="font-size:.73rem"
           data-add-fixed-ri="${rIdx}" data-add-fixed-ii="${iIdx}" data-add-fixed-pj="${pIdx}">＋ 固定開始日を設定</button>`
@@ -1586,6 +1592,15 @@ function wireReleaseEvents(el, pns, ppl) {
     const ii = parseInt(btn.dataset.addFixedIi);
     const pj = parseInt(btn.dataset.addFixedPj);
     C.releases[ri].items[ii].phases[pj].fixedStart = C.releases[ri].startDate || C.startDate;
+    render(); renderReleasesList();
+  }));
+
+  // ── 固定開始日削除 ──
+  el.querySelectorAll('[data-del-fixed-ri]').forEach(btn => btn.addEventListener('click', () => {
+    const ri = parseInt(btn.dataset.delFixedRi);
+    const ii = parseInt(btn.dataset.delFixedIi);
+    const pj = parseInt(btn.dataset.delFixedPj);
+    C.releases[ri].items[ii].phases[pj].fixedStart = null;
     render(); renderReleasesList();
   }));
 }
