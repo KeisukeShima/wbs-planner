@@ -7,6 +7,8 @@ import {
   makeADF,
   cfSchemaKind,
   cfPayloadValue,
+  getAccountId,
+  buildTaskBody,
 } from '../lib/jira.js';
 
 // ─── makeADF ─────────────────────────────────────────────────────────────────
@@ -130,5 +132,97 @@ describe('cfPayloadValue', () => {
   it('returns string value as-is for kind=string', () => {
     expect(cfPayloadValue({ schema: { type: 'string' }, value: 'hello' }))
       .toBe('hello');
+  });
+});
+
+// ─── getAccountId ─────────────────────────────────────────────────────────────
+
+describe('getAccountId', () => {
+  const people = [
+    { name: 'Alice', jiraUser: 'alice-account-id' },
+    { name: 'Bob',   jiraUser: '' },
+    { name: 'Charlie', jiraUser: null },
+  ];
+
+  it('returns the accountId when person is found with jiraUser set', () => {
+    expect(getAccountId('Alice', people)).toBe('alice-account-id');
+  });
+
+  it('returns null when person name is not in the list', () => {
+    expect(getAccountId('Dave', people)).toBeNull();
+  });
+
+  it('returns null when jiraUser is empty string', () => {
+    expect(getAccountId('Bob', people)).toBeNull();
+  });
+
+  it('returns null when jiraUser is null', () => {
+    expect(getAccountId('Charlie', people)).toBeNull();
+  });
+});
+
+// ─── buildTaskBody ────────────────────────────────────────────────────────────
+
+const baseJC = { projectKey: 'PROJ', issueTypeName: 'Task', customFields: [] };
+const basePeople = [
+  { name: 'Alice', jiraUser: 'alice-id' },
+  { name: 'Bob',   jiraUser: '' },
+];
+const baseRelease    = { epicKey: '' };
+const baseItem       = { name: 'Feature A', category: '', note: '' };
+const basePhaseTask  = { isBackground: false, totalDays: 5, assignedPeople: ['Alice'] };
+
+describe('buildTaskBody', () => {
+  it('includes project, summary, issuetype, and description', () => {
+    const body = buildTaskBody(baseItem, 0, [basePhaseTask], baseRelease, baseJC, basePeople);
+    expect(body.fields.project).toEqual({ key: 'PROJ' });
+    expect(body.fields.summary).toBe('1 Feature A');
+    expect(body.fields.issuetype).toEqual({ name: 'Task' });
+    expect(body.fields.description).toBeDefined();
+  });
+
+  it('uses itemIndex+1 as the number prefix in summary', () => {
+    const body = buildTaskBody(baseItem, 2, [basePhaseTask], baseRelease, baseJC, basePeople);
+    expect(body.fields.summary).toBe('3 Feature A');
+  });
+
+  it('sets customfield_10014 when release has epicKey', () => {
+    const release = { epicKey: 'PROJ-10' };
+    const body = buildTaskBody(baseItem, 0, [basePhaseTask], release, baseJC, basePeople);
+    expect(body.fields.customfield_10014).toBe('PROJ-10');
+  });
+
+  it('omits customfield_10014 when epicKey is empty', () => {
+    const body = buildTaskBody(baseItem, 0, [basePhaseTask], baseRelease, baseJC, basePeople);
+    expect(body.fields).not.toHaveProperty('customfield_10014');
+  });
+
+  it('sets assignee when the first non-background phase has a mapped person', () => {
+    const body = buildTaskBody(baseItem, 0, [basePhaseTask], baseRelease, baseJC, basePeople);
+    expect(body.fields.assignee).toEqual({ accountId: 'alice-id' });
+  });
+
+  it('omits assignee when the person has no jiraUser mapping', () => {
+    const tasks = [{ ...basePhaseTask, assignedPeople: ['Bob'] }];
+    const body = buildTaskBody(baseItem, 0, tasks, baseRelease, baseJC, basePeople);
+    expect(body.fields).not.toHaveProperty('assignee');
+  });
+
+  it('merges custom fields that have non-empty values', () => {
+    const jc = {
+      ...baseJC,
+      customFields: [{ id: 'customfield_123', schema: { type: 'string' }, value: 'myval' }],
+    };
+    const body = buildTaskBody(baseItem, 0, [basePhaseTask], baseRelease, jc, basePeople);
+    expect(body.fields.customfield_123).toBe('myval');
+  });
+
+  it('omits custom fields with empty values', () => {
+    const jc = {
+      ...baseJC,
+      customFields: [{ id: 'customfield_123', schema: { type: 'string' }, value: '' }],
+    };
+    const body = buildTaskBody(baseItem, 0, [basePhaseTask], baseRelease, jc, basePeople);
+    expect(body.fields).not.toHaveProperty('customfield_123');
   });
 });

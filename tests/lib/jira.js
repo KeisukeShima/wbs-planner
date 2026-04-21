@@ -42,3 +42,41 @@ export function cfPayloadValue(field) {
   if (kind === 'raw') { try { return JSON.parse(v); } catch { return v; } }
   return v;
 }
+
+// ─── getAccountId (wbs-planner.html:2116) ────────────────────────────────────
+
+export function getAccountId(personName, people) {
+  const p = people.find(x => x.name === personName);
+  return (p && p.jiraUser) ? p.jiraUser : null;
+}
+
+// ─── buildTaskBody (wbs-planner.html:2179-2203) ──────────────────────────────
+// Extracted from pushToJira(). jc = JiraConfig, people = C.people
+
+export function buildTaskBody(item, itemIndex, phaseTasks, release, jc, people) {
+  const taskSummary   = `${itemIndex + 1} ${item.name}`;
+  const totalDays     = phaseTasks.filter(t => !t.isBackground).reduce((s, t) => s + t.totalDays, 0);
+  const firstPhase    = phaseTasks.find(t => !t.isBackground && t.assignedPeople.length > 0);
+  const taskAccountId = firstPhase ? getAccountId(firstPhase.assignedPeople[0], people) : null;
+  const taskDesc      = [
+    item.category ? `カテゴリ: ${item.category}` : '',
+    item.note     ? `メモ: ${item.note}`         : '',
+    `稼働日数（合計）: ${totalDays}日`,
+  ].filter(Boolean).join('\n');
+
+  const extraFields = {};
+  (jc.customFields || []).forEach(f => {
+    const v = cfPayloadValue(f);
+    if (v !== undefined) extraFields[f.id] = v;
+  });
+
+  return { fields: {
+    project:     { key: jc.projectKey },
+    summary:     taskSummary,
+    issuetype:   { name: jc.issueTypeName || 'Task' },
+    description: makeADF(taskDesc),
+    ...(release.epicKey   ? { customfield_10014: release.epicKey }          : {}),
+    ...(taskAccountId     ? { assignee: { accountId: taskAccountId } }      : {}),
+    ...extraFields,
+  }};
+}
