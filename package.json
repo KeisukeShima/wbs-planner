@@ -3,9 +3,12 @@
   "type": "module",
   "scripts": {
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "playwright:install": "playwright install chromium"
   },
   "devDependencies": {
+    "@playwright/test": "^1.44.0",
     "vitest": "^2.0.0"
   }
 }
