@@ -1396,7 +1396,8 @@ function phaseForm(rIdx, iIdx, pIdx, ph, pns, ppl) {
       <input type="checkbox" data-pp-p="${esc(name)}" data-ri="${rIdx}" data-ii="${iIdx}" data-pj="${pIdx}"
         ${(ph.allowedPeople||[]).includes(name)?'checked':''}> ${esc(name)}
     </label>`).join('');
-  const hasFixed = ph.fixedStart !== undefined && ph.fixedStart !== null;
+  const hasFixed    = ph.fixedStart !== undefined && ph.fixedStart !== null;
+  const phaseCount  = C.releases[rIdx].items[iIdx].phases.length;
   return `
   <div class="phase-wrap">
     <div class="phase-head">
@@ -1404,6 +1405,10 @@ function phaseForm(rIdx, iIdx, pIdx, ph, pns, ppl) {
         style="flex:1 1 0;min-width:0;padding:6px 8px;border:1px solid #D1D5DB;border-radius:5px;font-size:.82rem">${typeOpts}</select>
       <button type="button" class="btn btn-secondary" data-toggle-pt-add data-ri="${rIdx}" data-ii="${iIdx}" data-pj="${pIdx}"
         style="flex-shrink:0;padding:3px 7px;font-size:.72rem" title="新しい工程タイプを追加">＋型</button>
+      <button type="button" class="btn btn-secondary btn-sm" data-mv-ph-ri="${rIdx}" data-mv-ph-ii="${iIdx}" data-mv-ph-pj="${pIdx}" data-dir="-1"
+        style="flex-shrink:0;padding:2px 6px" ${pIdx === 0 ? 'disabled' : ''}>↑</button>
+      <button type="button" class="btn btn-secondary btn-sm" data-mv-ph-ri="${rIdx}" data-mv-ph-ii="${iIdx}" data-mv-ph-pj="${pIdx}" data-dir="1"
+        style="flex-shrink:0;padding:2px 6px" ${pIdx === phaseCount - 1 ? 'disabled' : ''}>↓</button>
       <input type="number" min="1" value="${ph.days}" data-pf="days" data-ri="${rIdx}" data-ii="${iIdx}" data-pj="${pIdx}"
         style="flex-shrink:0;width:60px;padding:6px 8px;border:1px solid #D1D5DB;border-radius:5px;font-size:.82rem">
       <span style="flex-shrink:0;font-size:.75rem;color:#9CA3AF">日</span>
@@ -1537,6 +1542,19 @@ function wireReleaseEvents(el, pns, ppl) {
     const to  = ii + dir;
     if (to < 0 || to >= C.releases[ri].items.length) return;
     [C.releases[ri].items[ii], C.releases[ri].items[to]] = [C.releases[ri].items[to], C.releases[ri].items[ii]];
+    render(); renderReleasesList();
+  }));
+
+  // ── フェーズ移動 ──
+  el.querySelectorAll('[data-mv-ph-ri]').forEach(btn => btn.addEventListener('click', () => {
+    const ri  = parseInt(btn.dataset.mvPhRi);
+    const ii  = parseInt(btn.dataset.mvPhIi);
+    const pj  = parseInt(btn.dataset.mvPhPj);
+    const dir = parseInt(btn.dataset.dir);
+    const to  = pj + dir;
+    if (to < 0 || to >= C.releases[ri].items[ii].phases.length) return;
+    [C.releases[ri].items[ii].phases[pj], C.releases[ri].items[ii].phases[to]] =
+      [C.releases[ri].items[ii].phases[to], C.releases[ri].items[ii].phases[pj]];
     render(); renderReleasesList();
   }));
 
