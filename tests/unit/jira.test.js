@@ -378,4 +378,30 @@ describe('jiraApiWith', () => {
     await expect(jiraApiWith('/issue', {}, validJC))
       .rejects.toThrow('Project does not exist');
   });
+
+  it('throws with JIRA errors object when the error response contains field errors', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false, status: 400,
+      json: async () => ({ errorMessages: [], errors: { summary: 'Field required' } }),
+    });
+    await expect(jiraApiWith('/issue', {}, validJC))
+      .rejects.toThrow('summary: Field required');
+  });
+
+  it('throws with JIRA message when the error response contains a message field', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false, status: 403,
+      json: async () => ({ message: 'You do not have permission' }),
+    });
+    await expect(jiraApiWith('/issue', {}, validJC))
+      .rejects.toThrow('You do not have permission');
+  });
+
+  it('sends Basic auth header with base64-encoded credentials', async () => {
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({}) });
+    await jiraApiWith('/myself', {}, validJC);
+    const headers = mockFetch.mock.calls[0][1].headers;
+    const expected = 'Basic ' + btoa('user@example.com:secret-token');
+    expect(headers['Authorization']).toBe(expected);
+  });
 });
