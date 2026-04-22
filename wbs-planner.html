@@ -70,7 +70,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Hiragino Sans',san
 /* ── Gantt card ── */
 .card{background:#fff;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.1),0 1px 2px rgba(0,0,0,.06);padding:18px 22px}
 .card-header{font-size:.69rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#9CA3AF;margin-bottom:14px}
-.chart-scroll{overflow-x:auto}
+.chart-container{display:flex;overflow:hidden;align-items:flex-start}
+#gantt-labels{flex-shrink:0;display:block;box-shadow:2px 0 6px rgba(0,0,0,.08);z-index:1}
+.chart-scroll{overflow-x:auto;flex:1}
 svg{display:block}
 .legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:12px;padding-top:12px;border-top:1px solid #F3F4F6}
 .legend-item{display:flex;align-items:center;gap:6px;font-size:.8rem;color:#374151}
@@ -267,7 +269,10 @@ tbody tr.erow td{background:#FAF5FF}
   <div id="export-area">
     <div class="card" id="gantt-card">
       <div class="card-header">ガントチャート</div>
-      <div class="chart-scroll"><svg id="gantt"></svg></div>
+      <div class="chart-container">
+        <svg id="gantt-labels"></svg>
+        <div class="chart-scroll"><svg id="gantt"></svg></div>
+      </div>
       <div class="legend" id="legend"></div>
     </div>
     <div class="card">
@@ -722,6 +727,7 @@ function renderGantt(scheduled) {
   const colW = COL_W[unit];
 
   if (!tasks.length || !releaseMeta.length) {
+    document.getElementById('gantt-labels').innerHTML = '';
     document.getElementById('gantt').innerHTML = '';
     document.getElementById('legend').innerHTML = '';
     return;
@@ -765,19 +771,21 @@ function renderGantt(scheduled) {
     }
   }
 
-  const totalW  = LW + dateToX(vEnd, vStart, unit);
+  const chartW  = dateToX(vEnd, vStart, unit);
+  const totalW  = LW + chartW;
   const bodyH   = rows.length * ROW_H + PAD;
   const totalH  = HDR_H + bodyH;
 
   const phaseColor = {};
   C.phaseTypes.forEach(pt => phaseColor[pt.name] = pt.color);
 
-  let g = '';
+  let g  = '';  // chart body SVG content
+  let gL = '';  // labels SVG content
 
   // ── Background zones (weekend/holiday shading) ──
   const cols = buildColHeaders(vStart, vEnd, unit);
   cols.forEach((col, i) => {
-    const x = LW + dateToX(col, vStart, unit);
+    const x = dateToX(col, vStart, unit);
     const w = i + 1 < cols.length ? dateToX(cols[i+1], vStart, unit) - dateToX(col, vStart, unit) : colW;
     if (unit === 'days') {
       const dow    = col.getDay();
@@ -798,8 +806,8 @@ function renderGantt(scheduled) {
     if (!m.showEvalZone) return;
     const zoneY    = HDR_H + ri * ROW_H;
     const zoneH    = row.rowCount * ROW_H;
-    const evalX1   = LW + dateToX(m.evalStart, vStart, unit);
-    const relX     = LW + dateToX(parse(m.releaseDate), vStart, unit);
+    const evalX1   = dateToX(m.evalStart, vStart, unit);
+    const relX     = dateToX(parse(m.releaseDate), vStart, unit);
     const color    = m.evalZone?.color ?? '#8B5CF6';
     const label    = m.evalZone?.label ?? 'リリース評価';
     g += `<rect x="${evalX1}" y="${zoneY}" width="${relX - evalX1}" height="${zoneH}" fill="${color}" opacity=".07"/>`;
@@ -808,13 +816,16 @@ function renderGantt(scheduled) {
     g += `<text x="${relX}" y="${zoneY+13}" text-anchor="end" font-size="11" font-family="sans-serif">📦</text>`;
   });
 
-  // ── Column grid lines & header labels ──
-  g += `<rect x="0" y="22" width="${totalW}" height="${HDR_H-22}" fill="#F3F4F6"/>`;
-  g += `<text x="10" y="38" fill="#374151" font-size="11" font-weight="700" font-family="sans-serif">リリース / アイテム / 工程</text>`;
+  // ── Column grid lines & header labels (chart SVG) ──
+  g += `<rect x="0" y="22" width="${chartW}" height="${HDR_H-22}" fill="#F3F4F6"/>`;
+
+  // ── Label panel header (label SVG) ──
+  gL += `<rect x="0" y="22" width="${LW}" height="${HDR_H-22}" fill="#F3F4F6"/>`;
+  gL += `<text x="10" y="38" fill="#374151" font-size="11" font-weight="700" font-family="sans-serif">リリース / アイテム / 工程</text>`;
 
   let prevMonth = -1, prevYear = -1;
   cols.forEach((col, i) => {
-    const x = LW + dateToX(col, vStart, unit);
+    const x = dateToX(col, vStart, unit);
     const w = i + 1 < cols.length ? dateToX(cols[i+1], vStart, unit) - dateToX(col, vStart, unit) : colW;
     if (unit === 'days' || unit === 'weeks') {
       const m = col.getMonth();
@@ -837,8 +848,9 @@ function renderGantt(scheduled) {
     g += `<line x1="${x}" y1="22" x2="${x}" y2="${totalH}" stroke="#E5E7EB" stroke-width=".5"/>`;
   });
 
-  g += `<line x1="0" y1="${HDR_H}" x2="${totalW}" y2="${HDR_H}" stroke="#E5E7EB" stroke-width="1"/>`;
-  g += `<line x1="${LW}" y1="0" x2="${LW}" y2="${totalH}" stroke="#D1D5DB" stroke-width="1"/>`;
+  g  += `<line x1="0" y1="${HDR_H}" x2="${chartW}" y2="${HDR_H}" stroke="#E5E7EB" stroke-width="1"/>`;
+  gL += `<line x1="0" y1="${HDR_H}" x2="${LW}" y2="${HDR_H}" stroke="#E5E7EB" stroke-width="1"/>`;
+  gL += `<line x1="${LW-1}" y1="0" x2="${LW-1}" y2="${totalH}" stroke="#D1D5DB" stroke-width="1"/>`;
 
   // ── Rows ──
   const RELEASE_ROW_H = ROW_H;
@@ -846,14 +858,14 @@ function renderGantt(scheduled) {
     const ry = HDR_H + ri * ROW_H;
 
     if (row.kind === 'release') {
-      // リリース見出し行
+      // リリース見出し行 — ラベルパネル
       const color = row.meta.color || '#6D28D9';
-      // ラベルパネル背景
-      g += `<rect x="0" y="${ry}" width="${LW}" height="${RELEASE_ROW_H}" fill="${color}" opacity=".18"/>`;
-      g += `<text x="8" y="${ry+RELEASE_ROW_H/2+4}" fill="${color}" font-size="11" font-weight="700" font-family="sans-serif">▼ ${esc(trunc(row.meta.name, 18))}</text>`;
+      gL += `<rect x="0" y="${ry}" width="${LW}" height="${RELEASE_ROW_H}" fill="${color}" opacity=".18"/>`;
+      gL += `<text x="8" y="${ry+RELEASE_ROW_H/2+4}" fill="${color}" font-size="11" font-weight="700" font-family="sans-serif">▼ ${esc(trunc(row.meta.name, 18))}</text>`;
+      gL += `<line x1="0" y1="${ry}" x2="${LW}" y2="${ry}" stroke="${color}" stroke-width=".8" opacity=".4"/>`;
       // チャート部分: startDate〜releaseDate の期間バー
-      const rSX = LW + dateToX(parse(row.meta.startDate), vStart, unit);
-      const rEX = LW + dateToX(parse(row.meta.releaseDate), vStart, unit);
+      const rSX = dateToX(parse(row.meta.startDate), vStart, unit);
+      const rEX = dateToX(parse(row.meta.releaseDate), vStart, unit);
       const barH = RELEASE_ROW_H - 8, barY = ry + 4;
       if (rEX > rSX) {
         g += `<rect x="${rSX}" y="${barY}" width="${rEX - rSX}" height="${barH}" rx="3" fill="${color}" opacity=".28"/>`;
@@ -861,27 +873,28 @@ function renderGantt(scheduled) {
           g += `<text x="${(rSX+rEX)/2}" y="${barY+barH/2+3.5}" text-anchor="middle" fill="${color}" font-size="9" font-weight="700" font-family="sans-serif">${row.meta.startDate} 〜 ${row.meta.releaseDate}</text>`;
         g += `<line x1="${rEX}" y1="${barY-2}" x2="${rEX}" y2="${barY+barH+2}" stroke="${color}" stroke-width="2" opacity=".85"/>`;
       }
-      g += `<line x1="0" y1="${ry}" x2="${totalW}" y2="${ry}" stroke="${color}" stroke-width=".8" opacity=".4"/>`;
+      g += `<line x1="0" y1="${ry}" x2="${chartW}" y2="${ry}" stroke="${color}" stroke-width=".8" opacity=".4"/>`;
 
     } else if (row.kind === 'hdr') {
-      // アイテム見出し行
-      if (ri % 2 === 0) g += `<rect x="0" y="${ry}" width="${LW}" height="${ROW_H}" fill="#FAFAFA"/>`;
-      g += `<text x="16" y="${ry+ROW_H/2+4}" fill="#374151" font-size="10" font-weight="700" font-family="sans-serif">${row.iIdx+1} ${esc(trunc(row.item.name, 20))}</text>`;
+      // アイテム見出し行 — ラベルパネル
+      if (ri % 2 === 0) gL += `<rect x="0" y="${ry}" width="${LW}" height="${ROW_H}" fill="#FAFAFA"/>`;
+      gL += `<text x="16" y="${ry+ROW_H/2+4}" fill="#374151" font-size="10" font-weight="700" font-family="sans-serif">${row.iIdx+1} ${esc(trunc(row.item.name, 20))}</text>`;
       if (row.item.category) {
-        g += `<rect x="${LW-75}" y="${ry+6}" width="70" height="16" rx="8" fill="#F3F4F6"/>`;
-        g += `<text x="${LW-40}" y="${ry+17}" text-anchor="middle" fill="#6B7280" font-size="9" font-family="sans-serif">${esc(trunc(row.item.category, 10))}</text>`;
+        gL += `<rect x="${LW-75}" y="${ry+6}" width="70" height="16" rx="8" fill="#F3F4F6"/>`;
+        gL += `<text x="${LW-40}" y="${ry+17}" text-anchor="middle" fill="#6B7280" font-size="9" font-family="sans-serif">${esc(trunc(row.item.category, 10))}</text>`;
       }
-      g += `<line x1="0" y1="${ry}" x2="${totalW}" y2="${ry}" stroke="#E5E7EB" stroke-width=".8"/>`;
+      gL += `<line x1="0" y1="${ry}" x2="${LW}" y2="${ry}" stroke="#E5E7EB" stroke-width=".8"/>`;
+      g  += `<line x1="0" y1="${ry}" x2="${chartW}" y2="${ry}" stroke="#E5E7EB" stroke-width=".8"/>`;
 
     } else {
-      // タスク行
+      // タスク行 — ラベルパネル
       const { task: t } = row;
-      if (ri % 2 === 0) g += `<rect x="0" y="${ry}" width="${LW}" height="${ROW_H}" fill="#FAFAFA"/>`;
-      g += `<text x="24" y="${ry+ROW_H/2+4}" fill="#9CA3AF" font-size="9.5" font-family="sans-serif">└ ${esc(t.wbsNo)} ${esc(t.phaseType)}</text>`;
+      if (ri % 2 === 0) gL += `<rect x="0" y="${ry}" width="${LW}" height="${ROW_H}" fill="#FAFAFA"/>`;
+      gL += `<text x="24" y="${ry+ROW_H/2+4}" fill="#9CA3AF" font-size="9.5" font-family="sans-serif">└ ${esc(t.wbsNo)} ${esc(t.phaseType)}</text>`;
 
       if (t.startDate && t.endDate) {
-        const bx  = LW + dateToX(t.startDate, vStart, unit);
-        const ex  = LW + dateToX(addDays(t.endDate, 1), vStart, unit);
+        const bx  = dateToX(t.startDate, vStart, unit);
+        const ex  = dateToX(addDays(t.endDate, 1), vStart, unit);
         const bw  = Math.max(ex - bx, 3);
         const by  = ry + 4, bh = ROW_H - 8;
         const col = t.isBackground ? '#D1D5DB' : (phaseColor[t.phaseType] || '#6B7280');
@@ -895,7 +908,7 @@ function renderGantt(scheduled) {
         }
         if (t.hasConflict) g += `<text x="${bx+bw+3}" y="${by+bh/2+4}" fill="#EF4444" font-size="9" font-family="sans-serif">⚠</text>`;
       } else {
-        g += `<text x="140" y="${ry+ROW_H/2+4}" fill="#EF4444" font-size="9" font-family="sans-serif">未スケジュール</text>`;
+        gL += `<text x="60" y="${ry+ROW_H/2+4}" fill="#EF4444" font-size="9" font-family="sans-serif">未スケジュール</text>`;
       }
     }
   });
@@ -903,18 +916,24 @@ function renderGantt(scheduled) {
   // ── Today line ──
   const today = new Date();
   if (today >= vStart && today <= vEnd) {
-    const tx = LW + dateToX(today, vStart, unit);
+    const tx = dateToX(today, vStart, unit);
     g += `<line x1="${tx}" y1="${HDR_H}" x2="${tx}" y2="${totalH}" stroke="#EF4444" stroke-width="1.5" opacity=".55"/>`;
     g += `<text x="${tx+2}" y="${HDR_H+11}" fill="#EF4444" font-size="9" font-family="sans-serif">今日</text>`;
   }
 
-  g = `<rect x="0" y="0" width="${totalW}" height="${totalH}" fill="#fff"/>` + g;
-  g += `<rect x="0" y="${HDR_H}" width="${LW}" height="${bodyH}" fill="rgba(255,255,255,0)"/>`;
+  gL = `<rect x="0" y="0" width="${LW}" height="${totalH}" fill="#fff"/>` + gL;
+  g  = `<rect x="0" y="0" width="${chartW}" height="${totalH}" fill="#fff"/>` + g;
+
+  const svgL = document.getElementById('gantt-labels');
+  svgL.setAttribute('width',   LW);
+  svgL.setAttribute('height',  Math.ceil(totalH));
+  svgL.setAttribute('viewBox', `0 0 ${LW} ${Math.ceil(totalH)}`);
+  svgL.innerHTML = gL;
 
   const svg = document.getElementById('gantt');
-  svg.setAttribute('width',   Math.ceil(totalW));
+  svg.setAttribute('width',   Math.ceil(chartW));
   svg.setAttribute('height',  Math.ceil(totalH));
-  svg.setAttribute('viewBox', `0 0 ${Math.ceil(totalW)} ${Math.ceil(totalH)}`);
+  svg.setAttribute('viewBox', `0 0 ${Math.ceil(chartW)} ${Math.ceil(totalH)}`);
   svg.innerHTML = g;
 
   // Legend
@@ -975,6 +994,7 @@ function render() {
       : `${releaseCount} リリース — ${C.releases[0].startDate} 〜 ${C.releases[releaseCount-1].releaseDate}`;
 
   if (releaseCount === 0) {
+    document.getElementById('gantt-labels').innerHTML = '';
     document.getElementById('gantt').innerHTML = '';
     document.getElementById('legend').innerHTML = '';
     document.getElementById('tbody').innerHTML = '';
@@ -1716,6 +1736,7 @@ document.getElementById('btn-html').addEventListener('click', () => {
 });
 
 function buildViewerHTML() {
+  const svgLabels    = document.getElementById('gantt-labels').outerHTML;
   const svgContent   = document.getElementById('gantt').outerHTML;
   const legendHTML   = document.getElementById('legend').innerHTML;
   const tbodyHTML    = document.getElementById('tbody').innerHTML;
@@ -1735,7 +1756,9 @@ function buildViewerHTML() {
     'h1{font-size:1.5rem;font-weight:700;margin:0 0 4px}.sub{color:#6B7280;font-size:.85rem;margin:0 0 18px}',
     '.card{background:#fff;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.1);padding:20px 24px;margin-bottom:16px}',
     '.card-header{font-size:.69rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#9CA3AF;margin-bottom:14px}',
-    '.chart-scroll{overflow-x:auto}svg{display:block}',
+    '.chart-container{display:flex;overflow:hidden;align-items:flex-start}svg{display:block}',
+    '#gantt-labels{flex-shrink:0;box-shadow:2px 0 6px rgba(0,0,0,.08)}',
+    '.chart-scroll{overflow-x:auto;flex:1}',
     '.legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:12px;padding-top:12px;border-top:1px solid #F3F4F6}',
     '.legend-item{display:flex;align-items:center;gap:6px;font-size:.8rem;color:#374151}',
     '.legend-sw{width:13px;height:13px;border-radius:3px;flex-shrink:0}',
@@ -1755,7 +1778,10 @@ function buildViewerHTML() {
     warnHTML,
     '<div class="card">',
     '  <div class="card-header">ガントチャート</div>',
-    '  <div class="chart-scroll">' + svgContent + '</div>',
+    '  <div class="chart-container">',
+    '    ' + svgLabels,
+    '    <div class="chart-scroll">' + svgContent + '</div>',
+    '  </div>',
     '  <div class="legend">' + legendHTML + '</div>',
     '</div>',
     '<div class="card">',
@@ -2336,15 +2362,62 @@ document.getElementById('btn-png').addEventListener('click', async () => {
   const btn = document.getElementById('btn-png');
   btn.textContent = '生成中…'; btn.disabled = true;
   try {
+    const name = C.projectName || 'gantt';
+
+    // ガントチャート: 2つのSVGを結合してCanvas経由でPNG化
+    await exportGanttPNG(name);
+
+    // サマリーテーブル: html2canvas でPNG化
     if (!window.html2canvas) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
-    const canvas = await window.html2canvas(document.getElementById('export-area'), { scale:2, useCORS:true, backgroundColor:'#ffffff' });
-    canvas.toBlob(blob => dl(blob, `${C.projectName||'gantt'}.png`, 'image/png'), 'image/png');
+    const summaryCard = document.querySelector('#export-area .card:last-child');
+    const canvas = await window.html2canvas(summaryCard, { scale:2, useCORS:true, backgroundColor:'#ffffff' });
+    canvas.toBlob(blob => dl(blob, `${name}-summary.png`, 'image/png'), 'image/png');
+
     btn.textContent = 'PNG 出力'; btn.disabled = false;
   } catch(e) {
     alert('PNG出力に失敗しました: '+e.message);
     btn.textContent = 'PNG 出力'; btn.disabled = false;
   }
 });
+
+function exportGanttPNG(name, scale = 2) {
+  const labelsEl = document.getElementById('gantt-labels');
+  const chartEl  = document.getElementById('gantt');
+  const lw  = parseInt(labelsEl.getAttribute('width')  || '0');
+  const cw  = parseInt(chartEl.getAttribute('width')   || '0');
+  const h   = parseInt(labelsEl.getAttribute('height') || '0');
+  if (!lw || !cw || !h) return Promise.resolve();
+  const totalW = lw + cw;
+
+  const svgStr = [
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${totalW}" height="${h}" viewBox="0 0 ${totalW} ${h}">`,
+    `<rect width="${totalW}" height="${h}" fill="#fff"/>`,
+    labelsEl.innerHTML,
+    `<g transform="translate(${lw},0)">`,
+    chartEl.innerHTML,
+    `</g>`,
+    `</svg>`,
+  ].join('');
+
+  const blob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' });
+  const url  = URL.createObjectURL(blob);
+
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas  = document.createElement('canvas');
+      canvas.width  = totalW * scale;
+      canvas.height = h * scale;
+      const ctx = canvas.getContext('2d');
+      ctx.scale(scale, scale);
+      ctx.drawImage(img, 0, 0);
+      URL.revokeObjectURL(url);
+      canvas.toBlob(b => { dl(b, `${name}-gantt.png`, 'image/png'); resolve(); }, 'image/png');
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('SVG描画に失敗しました')); };
+    img.src = url;
+  });
+}
 
 // ═══════════════════════════════════════════════════════════
 //  HELPERS
