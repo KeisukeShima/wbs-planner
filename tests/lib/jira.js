@@ -116,7 +116,9 @@ export function buildSubTaskBody(task, taskKey, phaseType, jc, people) {
     issuetype:   { name: 'Sub-task' },
     parent:      { key: taskKey },
     description: makeADF(subDesc),
-    ...(subAccountId ? { assignee: { accountId: subAccountId } } : {}),
+    ...(subAccountId   ? { assignee:  { accountId: subAccountId } } : {}),
+    ...(task.startDate ? { startDate: toJiraDate(task.startDate) } : {}),
+    ...(task.endDate   ? { duedate:   toJiraDate(task.endDate) }   : {}),
   }};
 }
 

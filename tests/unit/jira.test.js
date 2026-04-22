@@ -360,6 +360,27 @@ describe('buildSubTaskBody', () => {
     expect(allText).not.toContain('担当チーム');
     expect(allText).toContain('稼働日数');
   });
+
+  it('sets startDate and duedate from task.startDate and task.endDate', () => {
+    const task = { ...baseSubTask, startDate: new Date(2026, 3, 1), endDate: new Date(2026, 3, 10) };
+    const body = buildSubTaskBody(task, 'PROJ-1', basePhaseTypeObj, baseJC, basePeople);
+    expect(body.fields.startDate).toBe('2026-04-01');
+    expect(body.fields.duedate).toBe('2026-04-10');
+  });
+
+  it('omits startDate when task.startDate is null', () => {
+    const task = { ...baseSubTask, startDate: null, endDate: new Date(2026, 3, 10) };
+    const body = buildSubTaskBody(task, 'PROJ-1', basePhaseTypeObj, baseJC, basePeople);
+    expect(body.fields).not.toHaveProperty('startDate');
+    expect(body.fields.duedate).toBe('2026-04-10');
+  });
+
+  it('omits duedate when task.endDate is null', () => {
+    const task = { ...baseSubTask, startDate: new Date(2026, 3, 1), endDate: null };
+    const body = buildSubTaskBody(task, 'PROJ-1', basePhaseTypeObj, baseJC, basePeople);
+    expect(body.fields.startDate).toBe('2026-04-01');
+    expect(body.fields).not.toHaveProperty('duedate');
+  });
 });
 
 // ─── jiraApiWith ──────────────────────────────────────────────────────────────
