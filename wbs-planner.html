@@ -2218,13 +2218,20 @@ async function pushToJira() {
         if (v !== undefined) extraFields[f.id] = v;
       });
 
+      const _starts   = phaseTasks.map(t => t.startDate).filter(Boolean);
+      const _ends     = phaseTasks.map(t => t.endDate).filter(Boolean);
+      const taskStart = _starts.length ? new Date(Math.min(..._starts.map(d => d.getTime()))) : null;
+      const taskEnd   = _ends.length   ? new Date(Math.max(..._ends.map(d => d.getTime())))   : null;
+
       const taskBody = { fields: {
         project:     { key: JC.projectKey },
         summary:     taskSummary,
         issuetype:   { name: JC.issueTypeName || 'Task' },
         description: makeADF(taskDesc),
-        ...(release.epicKey ? { customfield_10014: release.epicKey } : {}),
+        ...(release.epicKey ? { customfield_10014: release.epicKey }     : {}),
         ...(taskAccountId   ? { assignee: { accountId: taskAccountId } } : {}),
+        ...(taskStart       ? { startDate: fmt(taskStart) }              : {}),
+        ...(taskEnd         ? { duedate:   fmt(taskEnd) }                : {}),
         ...extraFields,
       }};
 
@@ -2261,7 +2268,9 @@ async function pushToJira() {
           issuetype:   { name: 'Sub-task' },
           parent:      { key: taskKey },
           description: makeADF(subDesc),
-          ...(subAccountId ? { assignee: { accountId: subAccountId } } : {}),
+          ...(subAccountId ? { assignee:  { accountId: subAccountId } } : {}),
+          ...(t.startDate  ? { startDate: fmt(t.startDate) }            : {}),
+          ...(t.endDate    ? { duedate:   fmt(t.endDate) }              : {}),
         }};
 
         try {
