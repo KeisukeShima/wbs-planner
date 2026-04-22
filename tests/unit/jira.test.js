@@ -11,7 +11,20 @@ import {
   buildTaskBody,
   buildSubTaskBody,
   jiraApiWith,
+  toJiraDate,
 } from '../lib/jira.js';
+
+// ─── toJiraDate ───────────────────────────────────────────────────────────────
+
+describe('toJiraDate', () => {
+  it('formats a date as YYYY-MM-DD without timezone shift', () => {
+    expect(toJiraDate(new Date(2026, 3, 22))).toBe('2026-04-22');
+  });
+
+  it('zero-pads single-digit month and day', () => {
+    expect(toJiraDate(new Date(2026, 0, 5))).toBe('2026-01-05');
+  });
+});
 
 // ─── makeADF ─────────────────────────────────────────────────────────────────
 

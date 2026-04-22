@@ -3,6 +3,11 @@
  * Keep in sync with the corresponding implementations in wbs-planner.html.
  */
 
+// ─── toJiraDate ──────────────────────────────────────────────────────────────
+
+export const toJiraDate = d =>
+  [d.getFullYear(), String(d.getMonth()+1).padStart(2,'0'), String(d.getDate()).padStart(2,'0')].join('-');
+
 // ─── makeADF (wbs-planner.html:2104) ─────────────────────────────────────────
 
 export function makeADF(text) {
