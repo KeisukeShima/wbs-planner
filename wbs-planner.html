@@ -1298,10 +1298,12 @@ function renderReleasesList() {
         <span class="li-name" style="color:${color}">${esc(release.name)}</span>
         <span class="li-sub">${esc(dateRange)}</span>
         <button class="btn btn-secondary btn-sm" data-mv-release="${rIdx}" data-dir="-1"
-          onclick="event.stopPropagation()" ${rIdx === 0 ? 'disabled' : ''} style="padding:2px 7px">↑</button>
+          onclick="event.stopPropagation()" title="上に移動" ${rIdx === 0 ? 'disabled' : ''} style="padding:2px 7px">↑</button>
         <button class="btn btn-secondary btn-sm" data-mv-release="${rIdx}" data-dir="1"
-          onclick="event.stopPropagation()" ${rIdx === (C.releases.length - 1) ? 'disabled' : ''} style="padding:2px 7px">↓</button>
-        <button class="btn btn-danger" data-del-release="${rIdx}" onclick="event.stopPropagation()">削除</button>
+          onclick="event.stopPropagation()" title="下に移動" ${rIdx === (C.releases.length - 1) ? 'disabled' : ''} style="padding:2px 7px">↓</button>
+        <button class="btn btn-sm" data-dup-release="${rIdx}" onclick="event.stopPropagation()" title="複製"
+          style="padding:2px 7px;background:#EDE9FE;border:1px solid #C4B5FD;color:#6D28D9;border-radius:6px;cursor:pointer;font-size:.78rem">⧉</button>
+        <button class="btn btn-danger" data-del-release="${rIdx}" onclick="event.stopPropagation()" title="削除" style="padding:2px 7px">✕</button>
       </div>
       <div class="li-body">
         <!-- リリース設定フォーム -->
