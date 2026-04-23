@@ -2090,7 +2090,7 @@ function renderStartDateFieldDropdown(allFields) {
   sel.innerHTML = '<option value="">(設定しない)</option>' +
     dateFields.map(f => {
       const id = f.fieldId ?? f.key;
-      return `<option value="${id}"${JC.startDateFieldId === id ? ' selected' : ''}>${esc(f.name)} (${id})</option>`;
+      return `<option value="${esc(id)}"${JC.startDateFieldId === id ? ' selected' : ''}>${esc(f.name)} (${esc(id)})</option>`;
     }).join('');
   wrap.style.display = 'block';
 }
