@@ -244,6 +244,13 @@ tbody tr.erow td{background:#FAF5FF}
       </div>
       <div id="jira-custom-fields"></div>
 
+      <div class="fg" id="j-startdate-wrap" style="display:none;margin-top:10px">
+        <label>開始日フィールド <span style="font-weight:400;color:#9CA3AF">（任意）</span></label>
+        <select id="j-startdate-field" style="width:100%;padding:7px 9px;border:1px solid #D1D5DB;border-radius:6px;font-size:.84rem">
+          <option value="">(設定しない)</option>
+        </select>
+      </div>
+
       <button class="btn btn-primary" id="btn-jira-push" style="margin-top:8px">JIRA に登録</button>
       <div id="jira-push-result"></div>
 
@@ -367,7 +374,7 @@ function updateUndoBtn() {
 }
 
 // ── JIRA 接続設定（プロジェクト設定 C とは別に保管）──
-const DEFAULT_JIRA_CONFIG = { siteUrl: '', email: '', apiToken: '', projectKey: '', proxyUrl: '', customFields: [] };
+const DEFAULT_JIRA_CONFIG = { siteUrl: '', email: '', apiToken: '', projectKey: '', proxyUrl: '', customFields: [], startDateFieldId: '' };
 let JC = loadJiraConfig();
 function loadJiraConfig() {
   try {
@@ -2074,6 +2081,20 @@ async function fetchRequiredFields() {
   }
 }
 
+function renderStartDateFieldDropdown(allFields) {
+  const dateFields = allFields.filter(f =>
+    f.schema?.type === 'date' && (f.fieldId ?? f.key) !== 'duedate'
+  );
+  const wrap = document.getElementById('j-startdate-wrap');
+  const sel  = document.getElementById('j-startdate-field');
+  sel.innerHTML = '<option value="">(設定しない)</option>' +
+    dateFields.map(f => {
+      const id = f.fieldId ?? f.key;
+      return `<option value="${id}"${JC.startDateFieldId === id ? ' selected' : ''}>${esc(f.name)} (${id})</option>`;
+    }).join('');
+  wrap.style.display = 'block';
+}
+
 async function loadFieldsForSelected() {
   const sel = document.getElementById('j-issuetype');
   const container = document.getElementById('jira-custom-fields');
@@ -2090,7 +2111,9 @@ async function loadFieldsForSelected() {
     const required = allFields.filter(f => f.required && !HANDLED_FIELDS.has(f.fieldId ?? f.key));
     if (required.length === 0) {
       container.innerHTML = '<p style="font-size:.8rem;color:#6B7280;padding:6px 0">必須カスタムフィールドはありません。</p>';
-      JC.customFields = []; saveJiraConfig(); return;
+      JC.customFields = []; saveJiraConfig();
+      renderStartDateFieldDropdown(allFields);
+      return;
     }
     JC.customFields = required.map(f => {
       const id = f.fieldId ?? f.key;
@@ -2122,6 +2145,7 @@ async function loadFieldsForSelected() {
 
     saveJiraConfig();
     renderCustomFields();
+    renderStartDateFieldDropdown(allFields);
   } catch(e) {
     container.innerHTML = `<p style="color:#EF4444;font-size:.8rem;padding:6px 0">フィールド取得エラー: ${e.message}</p>`;
   }
@@ -2366,6 +2390,7 @@ document.getElementById('j-email').addEventListener('input', e => { JC.email    
 document.getElementById('j-token').addEventListener('input', e => { JC.apiToken   = e.target.value.trim(); saveJiraConfig(); });
 document.getElementById('j-pkey').addEventListener('input',  e => { JC.projectKey = e.target.value.trim().toUpperCase(); saveJiraConfig(); });
 document.getElementById('j-proxy').addEventListener('input', e => { JC.proxyUrl   = e.target.value.trim(); saveJiraConfig(); });
+document.getElementById('j-startdate-field').addEventListener('change', e => { JC.startDateFieldId = e.target.value; saveJiraConfig(); });
 // ── PNG エクスポート ──
 document.getElementById('btn-png').addEventListener('click', async () => {
   const btn = document.getElementById('btn-png');
