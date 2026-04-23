@@ -87,7 +87,7 @@ export function buildTaskBody(item, itemIndex, phaseTasks, release, jc, people) 
     description: makeADF(taskDesc),
     ...(release.epicKey ? { customfield_10014: release.epicKey }          : {}),
     ...(taskAccountId   ? { assignee: { accountId: taskAccountId } }      : {}),
-    ...(taskStart       ? { startDate: toJiraDate(taskStart) }            : {}),
+    ...(taskStart && jc.startDateFieldId ? { [jc.startDateFieldId]: toJiraDate(taskStart) } : {}),
     ...(taskEnd         ? { duedate:   toJiraDate(taskEnd) }              : {}),
     ...extraFields,
   }};
@@ -117,7 +117,7 @@ export function buildSubTaskBody(task, taskKey, phaseType, jc, people) {
     parent:      { key: taskKey },
     description: makeADF(subDesc),
     ...(subAccountId   ? { assignee:  { accountId: subAccountId } } : {}),
-    ...(task.startDate ? { startDate: toJiraDate(task.startDate) } : {}),
+    ...(task.startDate && jc.startDateFieldId ? { [jc.startDateFieldId]: toJiraDate(task.startDate) } : {}),
     ...(task.endDate   ? { duedate:   toJiraDate(task.endDate) }   : {}),
   }};
 }

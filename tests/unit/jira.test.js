@@ -178,7 +178,7 @@ describe('getAccountId', () => {
 
 // ─── buildTaskBody ────────────────────────────────────────────────────────────
 
-const baseJC = { projectKey: 'PROJ', issueTypeName: 'Task', customFields: [] };
+const baseJC = { projectKey: 'PROJ', issueTypeName: 'Task', customFields: [], startDateFieldId: 'startDate' };
 const basePeople = [
   { name: 'Alice', jiraUser: 'alice-id' },
   { name: 'Bob',   jiraUser: '' },
@@ -289,6 +289,23 @@ describe('buildTaskBody', () => {
     expect(body.fields.startDate).toBe('2026-04-01');
     expect(body.fields).not.toHaveProperty('duedate');
   });
+
+  it('uses startDateFieldId as the JIRA field key for start date', () => {
+    const jc    = { ...baseJC, startDateFieldId: 'customfield_10015' };
+    const tasks = [{ ...basePhaseTask, startDate: new Date(2026, 3, 1), endDate: new Date(2026, 3, 10) }];
+    const body  = buildTaskBody(baseItem, 0, tasks, baseRelease, jc, basePeople);
+    expect(body.fields['customfield_10015']).toBe('2026-04-01');
+    expect(body.fields).not.toHaveProperty('startDate');
+  });
+
+  it('omits start date field when startDateFieldId is empty', () => {
+    const jc    = { ...baseJC, startDateFieldId: '' };
+    const tasks = [{ ...basePhaseTask, startDate: new Date(2026, 3, 1), endDate: new Date(2026, 3, 10) }];
+    const body  = buildTaskBody(baseItem, 0, tasks, baseRelease, jc, basePeople);
+    expect(body.fields).not.toHaveProperty('customfield_10015');
+    expect(body.fields).not.toHaveProperty('startDate');
+    expect(body.fields.duedate).toBe('2026-04-10');
+  });
 });
 
 // ─── buildSubTaskBody ─────────────────────────────────────────────────────────
@@ -380,6 +397,23 @@ describe('buildSubTaskBody', () => {
     const body = buildSubTaskBody(task, 'PROJ-1', basePhaseTypeObj, baseJC, basePeople);
     expect(body.fields.startDate).toBe('2026-04-01');
     expect(body.fields).not.toHaveProperty('duedate');
+  });
+
+  it('uses startDateFieldId as the JIRA field key for start date', () => {
+    const jc   = { ...baseJC, startDateFieldId: 'customfield_10015' };
+    const task = { ...baseSubTask, startDate: new Date(2026, 3, 1), endDate: new Date(2026, 3, 10) };
+    const body = buildSubTaskBody(task, 'PROJ-1', basePhaseTypeObj, jc, basePeople);
+    expect(body.fields['customfield_10015']).toBe('2026-04-01');
+    expect(body.fields).not.toHaveProperty('startDate');
+  });
+
+  it('omits start date field when startDateFieldId is empty', () => {
+    const jc   = { ...baseJC, startDateFieldId: '' };
+    const task = { ...baseSubTask, startDate: new Date(2026, 3, 1), endDate: new Date(2026, 3, 10) };
+    const body = buildSubTaskBody(task, 'PROJ-1', basePhaseTypeObj, jc, basePeople);
+    expect(body.fields).not.toHaveProperty('customfield_10015');
+    expect(body.fields).not.toHaveProperty('startDate');
+    expect(body.fields.duedate).toBe('2026-04-10');
   });
 });
 
