@@ -2254,7 +2254,7 @@ async function pushToJira() {
         description: makeADF(taskDesc),
         ...(release.epicKey ? { customfield_10014: release.epicKey }     : {}),
         ...(taskAccountId   ? { assignee: { accountId: taskAccountId } } : {}),
-        ...(taskStart       ? { startDate: fmt(taskStart) }              : {}),
+        ...(taskStart && JC.startDateFieldId ? { [JC.startDateFieldId]: fmt(taskStart) } : {}),
         ...(taskEnd         ? { duedate:   fmt(taskEnd) }                : {}),
         ...extraFields,
       }};
@@ -2293,7 +2293,7 @@ async function pushToJira() {
           parent:      { key: taskKey },
           description: makeADF(subDesc),
           ...(subAccountId ? { assignee:  { accountId: subAccountId } } : {}),
-          ...(t.startDate  ? { startDate: fmt(t.startDate) }            : {}),
+          ...(t.startDate && JC.startDateFieldId ? { [JC.startDateFieldId]: fmt(t.startDate) } : {}),
           ...(t.endDate    ? { duedate:   fmt(t.endDate) }              : {}),
         }};
 
