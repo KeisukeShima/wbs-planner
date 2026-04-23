@@ -186,3 +186,54 @@ test.describe('アイテム CRUD（リリース内）', () => {
       .toBeDisabled();
   });
 });
+
+// ── リリース複製 ───────────────────────────────────────────────────────────────
+
+test.describe('リリース複製', () => {
+  test('複製すると元のリリースの直後に新しいリリースが追加される', async ({ page }) => {
+    await page.click('#btn-add-release');
+    await expect(page.locator('.release-wrap')).toHaveCount(2);
+
+    // リリース1（index 0）を複製
+    await page.locator('[data-dup-release="0"]').click();
+
+    await expect(page.locator('.release-wrap')).toHaveCount(3);
+    // 複製は元の直後（index 1）に挿入される
+    const names = page.locator('.release-wrap > .li-head > .li-name');
+    await expect(names.nth(0)).toHaveText('リリース1');
+    await expect(names.nth(1)).toHaveText('リリース1 のコピー');
+    await expect(names.nth(2)).toHaveText('リリース2');
+  });
+
+  test('複製後のリリース名が「元の名前 のコピー」になっている', async ({ page }) => {
+    await page.locator('[data-dup-release="0"]').click();
+
+    const names = page.locator('.release-wrap > .li-head > .li-name');
+    await expect(names.nth(1)).toHaveText('リリース1 のコピー');
+  });
+
+  test('複製後の Epic キーが空になっている', async ({ page }) => {
+    // まず元リリースに epicKey を設定
+    await expandRelease(page, 0);
+    await page.locator('[data-rf="epicKey"][data-ri="0"]').fill('PROJ-100');
+
+    // 複製
+    await page.locator('[data-dup-release="0"]').click();
+
+    // 複製先（index 1）の epicKey が空であることを確認
+    await expandRelease(page, 1);
+    await expect(page.locator('[data-rf="epicKey"][data-ri="1"]')).toHaveValue('');
+  });
+
+  test('複製後のアイテムが元のリリースのアイテムと同じである', async ({ page }) => {
+    // デフォルト設定には「サンプルタスク」が1件含まれている
+    await page.locator('[data-dup-release="0"]').click();
+
+    // 複製先（index 1）にもアイテムが存在する
+    await expandRelease(page, 1);
+    await expect(page.locator('.item-wrap[data-ri="1"]')).toHaveCount(1);
+    await expect(
+      page.locator('.item-wrap[data-ri="1"][data-ii="0"] > .li-head > .li-name')
+    ).toHaveText('サンプルタスク');
+  });
+});
