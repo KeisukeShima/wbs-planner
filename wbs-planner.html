@@ -70,9 +70,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Hiragino Sans',san
 /* ── Gantt card ── */
 .card{background:#fff;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.1),0 1px 2px rgba(0,0,0,.06);padding:18px 22px}
 .card-header{font-size:.69rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#9CA3AF;margin-bottom:14px}
-.chart-container{display:flex;overflow:hidden;align-items:flex-start}
-#gantt-labels{flex-shrink:0;display:block;box-shadow:2px 0 6px rgba(0,0,0,.08);z-index:1}
-.chart-scroll{overflow-x:auto;flex:1}
+.chart-outer{display:flex;align-items:flex-start}
+.gantt-labels-col{flex-shrink:0}
+.gantt-labels-hdr-wrap{position:sticky;top:0;z-index:10;background:#fff}
+.gantt-right{flex:1;overflow:clip}
+.gantt-date-hdr{position:sticky;top:0;z-index:10;overflow:hidden;background:#fff;box-shadow:0 2px 4px rgba(0,0,0,.06)}
+#gantt-resize-handle{width:6px;flex-shrink:0;cursor:col-resize;background:#E5E7EB;align-self:stretch}
+#gantt-resize-handle:hover{background:#BFDBFE}
+.chart-scroll{overflow-x:auto}
 svg{display:block}
 .legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:12px;padding-top:12px;border-top:1px solid #F3F4F6}
 .legend-item{display:flex;align-items:center;gap:6px;font-size:.8rem;color:#374151}
@@ -276,9 +281,16 @@ tbody tr.erow td{background:#FAF5FF}
   <div id="export-area">
     <div class="card" id="gantt-card">
       <div class="card-header" style="display:flex;align-items:center;">ガントチャート<div style="margin-left:auto;display:flex;gap:6px"><button class="btn btn-secondary btn-sm" id="btn-collapse-all">▶ 全折りたたみ</button><button class="btn btn-secondary btn-sm" id="btn-expand-all">▼ 全展開</button></div></div>
-      <div class="chart-container">
-        <svg id="gantt-labels"></svg>
-        <div class="chart-scroll"><svg id="gantt"></svg></div>
+      <div class="chart-outer">
+        <div class="gantt-labels-col" id="gantt-labels-col">
+          <div class="gantt-labels-hdr-wrap"><svg id="gantt-labels-hdr"></svg></div>
+          <svg id="gantt-labels-body"></svg>
+        </div>
+        <div id="gantt-resize-handle"></div>
+        <div class="gantt-right">
+          <div class="gantt-date-hdr"><svg id="gantt-hdr"></svg></div>
+          <div class="chart-scroll"><svg id="gantt-body"></svg></div>
+        </div>
       </div>
       <div class="legend" id="legend"></div>
     </div>
