@@ -25,24 +25,89 @@ test.describe('ガントチャート sticky ヘッダー & ラベル列リサイ
   });
 
   test('date header sticks to top when page scrolls past it', async ({ page }) => {
-    // Find natural document-offset of the date header
-    const naturalTop = await page.locator('.gantt-date-hdr').evaluate(
-      el => el.getBoundingClientRect().top + window.scrollY
-    );
-    // Scroll so its natural position is above the viewport
-    await page.evaluate(y => window.scrollTo(0, y + 50), naturalTop);
+    // The layout uses #preview (overflow:auto) as the scroll container — not window.
+    // Default data (1 task) produces a chart shorter than the 720px viewport, so
+    // scrolling is impossible.  Populate localStorage with many items first so the
+    // Gantt chart overflows #preview and the sticky behaviour can be exercised.
+    await page.evaluate(() => {
+      const items = Array.from({ length: 20 }, (_, i) => ({
+        id: `item_${i}`,
+        name: `タスク${i + 1}`,
+        category: '開発',
+        note: '',
+        phases: [
+          { type: '要件定義', days: 5 },
+          { type: '設計開発', days: 10 },
+        ],
+      }));
+      const cfg = {
+        projectName: 'Test',
+        startDate: '2026-04-20',
+        ganttUnit: 'weeks',
+        holidays: { national: [], company: [] },
+        phaseTypes: [
+          { name: '要件定義',  team: 'D&T', color: '#3B82F6' },
+          { name: '設計開発',  team: 'SI',  color: '#10B981' },
+        ],
+        people: [],
+        releases: [{
+          id: 'r_default',
+          name: 'リリース1',
+          color: '#6D28D9',
+          startDate: '2026-04-20',
+          releaseDate: '2026-09-30',
+          evalPeriod: { value: 4, unit: 'weeks' },
+          showEvalZone: false,
+          evalZone: { label: 'リリース評価', color: '#8B5CF6' },
+          epicKey: '',
+          items,
+        }],
+      };
+      localStorage.setItem('gantt-gen-cfg', JSON.stringify(cfg));
+    });
+    await page.reload();
+    await page.waitForSelector('#gantt-card');
+
+    // Verify #preview is now scrollable
+    const scrollable = await page.evaluate(() => {
+      const p = document.getElementById('preview');
+      return p.scrollHeight > p.clientHeight;
+    });
+    expect(scrollable).toBe(true);
+
+    // Find offset of date header within #preview's coordinate space
+    const naturalTop = await page.evaluate(() => {
+      const preview = document.getElementById('preview');
+      const hdr = document.querySelector('.gantt-date-hdr');
+      const previewRect = preview.getBoundingClientRect();
+      const hdrRect = hdr.getBoundingClientRect();
+      return (hdrRect.top - previewRect.top) + preview.scrollTop;
+    });
+
+    // Scroll #preview so the header's natural position is above the visible area
+    await page.evaluate(y => {
+      document.getElementById('preview').scrollTop = y + 50;
+    }, naturalTop);
     // Wait for one paint frame so CSS sticky has taken effect
     await page.evaluate(() => new Promise(r => requestAnimationFrame(r)));
 
-    // Guard: verify the page actually scrolled (prevents false-positive sticky assertion)
-    expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+    // Guard: verify the scroll container actually scrolled
+    expect(await page.evaluate(() => document.getElementById('preview').scrollTop)).toBeGreaterThan(0);
 
     const rect = await page.locator('.gantt-date-hdr').evaluate(
       el => el.getBoundingClientRect()
     );
-    // Sticky: actual top should be ≈0, not negative
-    expect(rect.top).toBeGreaterThanOrEqual(-1);
-    expect(rect.top).toBeLessThan(5);
+    // The sticky element should remain at (or near) the top of #preview's content area.
+    // #preview has padding (e.g. 24px) so the content area starts at previewTop + paddingTop.
+    const stickyBaseline = await page.evaluate(() => {
+      const preview = document.getElementById('preview');
+      const previewRect = preview.getBoundingClientRect();
+      const paddingTop = parseFloat(getComputedStyle(preview).paddingTop) || 0;
+      return previewRect.top + paddingTop;
+    });
+    // Sticky: hdr top should be ≈ stickyBaseline (within a few pixels), not scrolled off-screen
+    expect(rect.top).toBeGreaterThanOrEqual(stickyBaseline - 1);
+    expect(rect.top).toBeLessThan(stickyBaseline + 10);
   });
 
   test('drag resize handle changes label column width', async ({ page }) => {
