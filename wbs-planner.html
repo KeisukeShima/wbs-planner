@@ -1073,7 +1073,18 @@ function renderGantt(scheduled) {
   document.getElementById('legend').innerHTML = leg;
 }
 
-function initGanttScrollSync() { /* implementation added in next step */ }
+function initGanttScrollSync() {
+  const chartScroll = document.querySelector('.chart-scroll');
+  const dateHdrSvg  = document.getElementById('gantt-hdr');
+  if (!chartScroll || !dateHdrSvg) return;
+  if (chartScroll._scrollHandler) {
+    chartScroll.removeEventListener('scroll', chartScroll._scrollHandler);
+  }
+  chartScroll._scrollHandler = () => {
+    dateHdrSvg.style.marginLeft = `-${chartScroll.scrollLeft}px`;
+  };
+  chartScroll.addEventListener('scroll', chartScroll._scrollHandler, { passive: true });
+}
 
 // ═══════════════════════════════════════════════════════════
 //  TABLE RENDERER
