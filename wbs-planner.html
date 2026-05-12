@@ -368,6 +368,45 @@ const DEFAULT_CONFIG = {
 // ═══════════════════════════════════════════════════════════
 let C = loadConfig();
 let _undoSnapshot = null;
+
+// ── ガントチャート折りたたみ UI ステート ──
+function loadCollapseState() {
+  try {
+    const s = localStorage.getItem('gantt-collapse-state');
+    return s ? JSON.parse(s) : { releases: {}, items: {} };
+  } catch { return { releases: {}, items: {} }; }
+}
+function saveCollapseState() {
+  try { localStorage.setItem('gantt-collapse-state', JSON.stringify(ganttCollapse)); } catch {}
+}
+let ganttCollapse = loadCollapseState();
+let lastScheduled = null;
+
+function toggleReleaseCollapse(releaseId) {
+  if (!lastScheduled) return;
+  if (ganttCollapse.releases[releaseId]) {
+    delete ganttCollapse.releases[releaseId];
+  } else {
+    ganttCollapse.releases[releaseId] = true;
+  }
+  saveCollapseState();
+  renderGantt(lastScheduled);
+  renderTable(lastScheduled);
+}
+
+function toggleItemCollapse(releaseId, itemIdx) {
+  if (!lastScheduled) return;
+  const key = `${releaseId}_${itemIdx}`;
+  if (ganttCollapse.items[key]) {
+    delete ganttCollapse.items[key];
+  } else {
+    ganttCollapse.items[key] = true;
+  }
+  saveCollapseState();
+  renderGantt(lastScheduled);
+  renderTable(lastScheduled);
+}
+
 function updateUndoBtn() {
   const btn = document.getElementById('btn-undo');
   if (btn) btn.disabled = !_undoSnapshot;
