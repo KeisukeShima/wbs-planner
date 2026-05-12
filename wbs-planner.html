@@ -1961,6 +1961,11 @@ function buildExportSvg(side) {
   if (!hdr || !body) return '<svg xmlns="http://www.w3.org/2000/svg"></svg>';
   const w      = +hdr.getAttribute('width');
   const totalH = HDR_H + +body.getAttribute('height');
+  // hdr and body SVGs receive identical innerHTML (gL / g) — the full content string
+  // containing all rows at absolute y-coordinates 0..totalH.  The live-DOM viewBox
+  // clips each SVG to its visible band (header: 0–HDR_H, body: HDR_H–totalH).
+  // For export we set viewBox to the full height, so hdr.innerHTML alone is sufficient
+  // and correctly includes every body row.
   return `<svg width="${w}" height="${totalH}" viewBox="0 0 ${w} ${totalH}" xmlns="http://www.w3.org/2000/svg">` +
     hdr.innerHTML +
     `</svg>`;
@@ -2651,6 +2656,8 @@ function exportGanttPNG(name, scale = 2) {
   const totalW = lw + cw;
   const totalH = HDR_H + bh;
 
+  // lHdr / cHdr SVGs hold the same full innerHTML as lBody / cBody (all rows, absolute y coords).
+  // Live-DOM display uses viewBox clipping; here we export at full height so all rows appear.
   const svgStr = [
     `<svg xmlns="http://www.w3.org/2000/svg" width="${totalW}" height="${totalH}" viewBox="0 0 ${totalW} ${totalH}">`,
     `<rect width="${totalW}" height="${totalH}" fill="#fff"/>`,
