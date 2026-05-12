@@ -1121,6 +1121,7 @@ document.getElementById('btn-collapse-all').addEventListener('click', () => {
   renderTable(lastScheduled);
 });
 document.getElementById('btn-expand-all').addEventListener('click', () => {
+  if (!lastScheduled) return;
   ganttCollapse = { releases: {}, items: {} };
   saveCollapseState();
   renderGantt(lastScheduled);
