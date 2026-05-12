@@ -13,7 +13,7 @@ test.beforeEach(async ({ page }) => {
   await page.waitForSelector('#btn-add-release');
   // ガントが描画されるまで待つ
   await page.waitForFunction(() => {
-    const svg = document.getElementById('gantt-labels');
+    const svg = document.getElementById('gantt-labels-body');
     return svg && svg.getAttribute('data-visible-row-count') !== null;
   });
 });
@@ -21,65 +21,65 @@ test.beforeEach(async ({ page }) => {
 test.describe('ガントチャート折りたたみ', () => {
 
   test('初期状態で全行が表示される (4行)', async ({ page }) => {
-    await expect(page.locator('#gantt-labels'))
+    await expect(page.locator('#gantt-labels-body'))
       .toHaveAttribute('data-visible-row-count', '4');
   });
 
   test('リリース行クリックで配下の行が非表示になる (1行のみ残る)', async ({ page }) => {
-    await page.locator('[data-collapse-release]').first().click();
-    await expect(page.locator('#gantt-labels'))
+    await page.locator('#gantt-labels-body [data-collapse-release]').first().dispatchEvent('click');
+    await expect(page.locator('#gantt-labels-body'))
       .toHaveAttribute('data-visible-row-count', '1');
   });
 
   test('折りたたんだリリース行を再クリックすると展開される', async ({ page }) => {
-    await page.locator('[data-collapse-release]').first().click();
-    await expect(page.locator('#gantt-labels'))
+    await page.locator('#gantt-labels-body [data-collapse-release]').first().dispatchEvent('click');
+    await expect(page.locator('#gantt-labels-body'))
       .toHaveAttribute('data-visible-row-count', '1');
-    await page.locator('[data-collapse-release]').first().click();
-    await expect(page.locator('#gantt-labels'))
+    await page.locator('#gantt-labels-body [data-collapse-release]').first().dispatchEvent('click');
+    await expect(page.locator('#gantt-labels-body'))
       .toHaveAttribute('data-visible-row-count', '4');
   });
 
   test('アイテム行クリックで工程行だけが非表示になる (2行残る)', async ({ page }) => {
-    await page.locator('[data-collapse-item]').first().click();
-    await expect(page.locator('#gantt-labels'))
+    await page.locator('#gantt-labels-body [data-collapse-item]').first().dispatchEvent('click');
+    await expect(page.locator('#gantt-labels-body'))
       .toHaveAttribute('data-visible-row-count', '2');
   });
 
   test('折りたたんだアイテム行を再クリックすると展開される', async ({ page }) => {
-    await page.locator('[data-collapse-item]').first().click();
-    await page.locator('[data-collapse-item]').first().click();
-    await expect(page.locator('#gantt-labels'))
+    await page.locator('#gantt-labels-body [data-collapse-item]').first().dispatchEvent('click');
+    await page.locator('#gantt-labels-body [data-collapse-item]').first().dispatchEvent('click');
+    await expect(page.locator('#gantt-labels-body'))
       .toHaveAttribute('data-visible-row-count', '4');
   });
 
   test('「全折りたたみ」ボタンで全リリースが折りたたまれる', async ({ page }) => {
     await page.click('#btn-collapse-all');
-    await expect(page.locator('#gantt-labels'))
+    await expect(page.locator('#gantt-labels-body'))
       .toHaveAttribute('data-visible-row-count', '1');
   });
 
   test('「全展開」ボタンで全行が展開される', async ({ page }) => {
     // まず折りたたむ
     await page.click('#btn-collapse-all');
-    await expect(page.locator('#gantt-labels'))
+    await expect(page.locator('#gantt-labels-body'))
       .toHaveAttribute('data-visible-row-count', '1');
     // 展開
     await page.click('#btn-expand-all');
-    await expect(page.locator('#gantt-labels'))
+    await expect(page.locator('#gantt-labels-body'))
       .toHaveAttribute('data-visible-row-count', '4');
   });
 
   test('折りたたみ状態がリロード後も保持される', async ({ page }) => {
-    await page.locator('[data-collapse-release]').first().click();
-    await expect(page.locator('#gantt-labels'))
+    await page.locator('#gantt-labels-body [data-collapse-release]').first().dispatchEvent('click');
+    await expect(page.locator('#gantt-labels-body'))
       .toHaveAttribute('data-visible-row-count', '1');
     await page.reload();
     await page.waitForFunction(() => {
-      const svg = document.getElementById('gantt-labels');
+      const svg = document.getElementById('gantt-labels-body');
       return svg && svg.getAttribute('data-visible-row-count') !== null;
     });
-    await expect(page.locator('#gantt-labels'))
+    await expect(page.locator('#gantt-labels-body'))
       .toHaveAttribute('data-visible-row-count', '1');
   });
 

@@ -70,9 +70,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Hiragino Sans',san
 /* ── Gantt card ── */
 .card{background:#fff;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.1),0 1px 2px rgba(0,0,0,.06);padding:18px 22px}
 .card-header{font-size:.69rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#9CA3AF;margin-bottom:14px}
-.chart-container{display:flex;overflow:hidden;align-items:flex-start}
-#gantt-labels{flex-shrink:0;display:block;box-shadow:2px 0 6px rgba(0,0,0,.08);z-index:1}
-.chart-scroll{overflow-x:auto;flex:1}
+.chart-outer{display:flex;align-items:flex-start}
+.gantt-labels-col{flex-shrink:0}
+.gantt-labels-hdr-wrap{position:sticky;top:-24px;z-index:10;background:#fff}
+.gantt-right{flex:1;overflow:clip;min-width:0}
+.gantt-date-hdr{position:sticky;top:-24px;z-index:10;overflow:hidden;background:#fff;box-shadow:0 2px 4px rgba(0,0,0,.06)}
+#gantt-resize-handle{width:6px;flex-shrink:0;cursor:col-resize;background:#E5E7EB;align-self:stretch}
+#gantt-resize-handle:hover{background:#BFDBFE}
+.chart-scroll{overflow-x:auto}
 svg{display:block}
 .legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:12px;padding-top:12px;border-top:1px solid #F3F4F6}
 .legend-item{display:flex;align-items:center;gap:6px;font-size:.8rem;color:#374151}
@@ -276,9 +281,16 @@ tbody tr.erow td{background:#FAF5FF}
   <div id="export-area">
     <div class="card" id="gantt-card">
       <div class="card-header" style="display:flex;align-items:center;">ガントチャート<div style="margin-left:auto;display:flex;gap:6px"><button class="btn btn-secondary btn-sm" id="btn-collapse-all">▶ 全折りたたみ</button><button class="btn btn-secondary btn-sm" id="btn-expand-all">▼ 全展開</button></div></div>
-      <div class="chart-container">
-        <svg id="gantt-labels"></svg>
-        <div class="chart-scroll"><svg id="gantt"></svg></div>
+      <div class="chart-outer">
+        <div class="gantt-labels-col" id="gantt-labels-col">
+          <div class="gantt-labels-hdr-wrap"><svg id="gantt-labels-hdr"></svg></div>
+          <svg id="gantt-labels-body"></svg>
+        </div>
+        <div id="gantt-resize-handle"></div>
+        <div class="gantt-right">
+          <div class="gantt-date-hdr"><svg id="gantt-hdr"></svg></div>
+          <div class="chart-scroll"><svg id="gantt-body"></svg></div>
+        </div>
       </div>
       <div class="legend" id="legend"></div>
     </div>
@@ -739,7 +751,11 @@ function runSchedule() {
 // ═══════════════════════════════════════════════════════════
 //  SVG GANTT RENDERER
 // ═══════════════════════════════════════════════════════════
-const LW=220, ROW_H=30, HDR_H=48, PAD=8;
+let LW = (() => {
+  const s = localStorage.getItem('gantt-label-width');
+  return (s && !isNaN(+s)) ? Math.max(120, Math.min(400, +s)) : 220;
+})();
+const ROW_H=30, HDR_H=48, PAD=8;
 const COL_W = { days: 22, weeks: 68, months: 110 };
 
 function dateToX(date, vStart, unit) {
@@ -775,8 +791,9 @@ function renderGantt(scheduled) {
   const colW = COL_W[unit];
 
   if (!tasks.length || !releaseMeta.length) {
-    document.getElementById('gantt-labels').innerHTML = '';
-    document.getElementById('gantt').innerHTML = '';
+    ['gantt-labels-hdr','gantt-labels-body','gantt-hdr','gantt-body'].forEach(
+      id => { const el = document.getElementById(id); if (el) el.innerHTML = ''; }
+    );
     document.getElementById('legend').innerHTML = '';
     return;
   }
@@ -1020,18 +1037,33 @@ function renderGantt(scheduled) {
   gL = `<rect x="0" y="0" width="${LW}" height="${totalH}" fill="#fff"/>` + gL;
   g  = `<rect x="0" y="0" width="${chartW}" height="${totalH}" fill="#fff"/>` + g;
 
-  const svgL = document.getElementById('gantt-labels');
-  svgL.setAttribute('width',   LW);
-  svgL.setAttribute('height',  Math.ceil(totalH));
-  svgL.setAttribute('viewBox', `0 0 ${LW} ${Math.ceil(totalH)}`);
-  svgL.innerHTML = gL;
-  svgL.setAttribute('data-visible-row-count', visibleRows.length);
+  const svgLabelsHdr = document.getElementById('gantt-labels-hdr');
+  svgLabelsHdr.setAttribute('width',   LW);
+  svgLabelsHdr.setAttribute('height',  HDR_H);
+  svgLabelsHdr.setAttribute('viewBox', `0 0 ${LW} ${HDR_H}`);
+  svgLabelsHdr.innerHTML = gL;
 
-  const svg = document.getElementById('gantt');
-  svg.setAttribute('width',   Math.ceil(chartW));
-  svg.setAttribute('height',  Math.ceil(totalH));
-  svg.setAttribute('viewBox', `0 0 ${Math.ceil(chartW)} ${Math.ceil(totalH)}`);
-  svg.innerHTML = g;
+  const svgLabelsBody = document.getElementById('gantt-labels-body');
+  svgLabelsBody.setAttribute('width',   LW);
+  svgLabelsBody.setAttribute('height',  Math.ceil(bodyH));
+  svgLabelsBody.setAttribute('viewBox', `0 ${HDR_H} ${LW} ${Math.ceil(bodyH)}`);
+  svgLabelsBody.innerHTML = gL;
+  svgLabelsBody.setAttribute('data-visible-row-count', visibleRows.length);
+
+  const svgHdr = document.getElementById('gantt-hdr');
+  svgHdr.setAttribute('width',   Math.ceil(chartW));
+  svgHdr.setAttribute('height',  HDR_H);
+  svgHdr.setAttribute('viewBox', `0 0 ${Math.ceil(chartW)} ${HDR_H}`);
+  svgHdr.innerHTML = g;
+
+  const svgBody = document.getElementById('gantt-body');
+  svgBody.setAttribute('width',   Math.ceil(chartW));
+  svgBody.setAttribute('height',  Math.ceil(bodyH));
+  svgBody.setAttribute('viewBox', `0 ${HDR_H} ${Math.ceil(chartW)} ${Math.ceil(bodyH)}`);
+  svgBody.innerHTML = g;
+
+  document.getElementById('gantt-labels-col').style.width = `${LW}px`;
+  initGanttScrollSync();
 
   // Legend
   let leg = '';
@@ -1039,6 +1071,47 @@ function renderGantt(scheduled) {
     leg += `<div class="legend-item"><div class="legend-sw" style="background:${pt.color}"></div>${esc(pt.name)}</div>`;
   });
   document.getElementById('legend').innerHTML = leg;
+}
+
+function initGanttScrollSync() {
+  const chartScroll = document.querySelector('.chart-scroll');
+  const dateHdrSvg  = document.getElementById('gantt-hdr');
+  if (!chartScroll || !dateHdrSvg) return;
+  if (chartScroll._scrollHandler) {
+    chartScroll.removeEventListener('scroll', chartScroll._scrollHandler);
+  }
+  chartScroll._scrollHandler = () => {
+    dateHdrSvg.style.marginLeft = `-${chartScroll.scrollLeft}px`;
+  };
+  chartScroll.addEventListener('scroll', chartScroll._scrollHandler, { passive: true });
+}
+
+function initGanttResize() {
+  const handle    = document.getElementById('gantt-resize-handle');
+  const labelsCol = document.getElementById('gantt-labels-col');
+  if (!handle || !labelsCol) return;
+  let startX, startLW;
+
+  handle.addEventListener('mousedown', e => {
+    startX  = e.clientX;
+    startLW = LW;
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup',   onUp);
+    e.preventDefault();
+  });
+
+  function onMove(e) {
+    const w = Math.max(120, Math.min(400, startLW + e.clientX - startX));
+    labelsCol.style.width = `${w}px`;
+  }
+
+  function onUp(e) {
+    LW = Math.max(120, Math.min(400, startLW + e.clientX - startX));
+    localStorage.setItem('gantt-label-width', LW);
+    if (lastScheduled) renderGantt(lastScheduled);
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup',   onUp);
+  }
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -1103,9 +1176,9 @@ function render() {
 
   if (releaseCount === 0) {
     lastScheduled = null;
-    document.getElementById('gantt-labels').innerHTML = '';
-    document.getElementById('gantt').innerHTML = '';
-    document.getElementById('legend').innerHTML = '';
+    ['gantt-labels-hdr','gantt-labels-body','gantt-hdr','gantt-body','legend'].forEach(
+      id => { const el = document.getElementById(id); if (el) el.innerHTML = ''; }
+    );
     document.getElementById('tbody').innerHTML = '';
     document.getElementById('warn-box').innerHTML = '';
     return;
@@ -1881,9 +1954,26 @@ document.getElementById('btn-html').addEventListener('click', () => {
   dl(buildViewerHTML(), `${C.projectName||'gantt'}.html`, 'text/html');
 });
 
+function buildExportSvg(side) {
+  const isLabels = side === 'labels';
+  const hdr  = document.getElementById(isLabels ? 'gantt-labels-hdr'  : 'gantt-hdr');
+  const body = document.getElementById(isLabels ? 'gantt-labels-body' : 'gantt-body');
+  if (!hdr || !body) return '<svg xmlns="http://www.w3.org/2000/svg"></svg>';
+  const w      = +hdr.getAttribute('width');
+  const totalH = HDR_H + +body.getAttribute('height');
+  // hdr and body SVGs receive identical innerHTML (gL / g) — the full content string
+  // containing all rows at absolute y-coordinates 0..totalH.  The live-DOM viewBox
+  // clips each SVG to its visible band (header: 0–HDR_H, body: HDR_H–totalH).
+  // For export we set viewBox to the full height, so hdr.innerHTML alone is sufficient
+  // and correctly includes every body row.
+  return `<svg width="${w}" height="${totalH}" viewBox="0 0 ${w} ${totalH}" xmlns="http://www.w3.org/2000/svg">` +
+    hdr.innerHTML +
+    `</svg>`;
+}
+
 function buildViewerHTML() {
-  const svgLabels    = document.getElementById('gantt-labels').outerHTML;
-  const svgContent   = document.getElementById('gantt').outerHTML;
+  const svgLabels  = buildExportSvg('labels');
+  const svgContent = buildExportSvg('chart');
   const legendHTML   = document.getElementById('legend').innerHTML;
   const tbodyHTML    = document.getElementById('tbody').innerHTML;
   const titleText    = document.getElementById('pv-title').textContent;
@@ -1903,7 +1993,7 @@ function buildViewerHTML() {
     '.card{background:#fff;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.1);padding:20px 24px;margin-bottom:16px}',
     '.card-header{font-size:.69rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#9CA3AF;margin-bottom:14px}',
     '.chart-container{display:flex;overflow:hidden;align-items:flex-start}svg{display:block}',
-    '#gantt-labels{flex-shrink:0;box-shadow:2px 0 6px rgba(0,0,0,.08)}',
+    '.chart-container>svg:first-child{flex-shrink:0;box-shadow:2px 0 6px rgba(0,0,0,.08)}',
     '.chart-scroll{overflow-x:auto;flex:1}',
     '.legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:12px;padding-top:12px;border-top:1px solid #F3F4F6}',
     '.legend-item{display:flex;align-items:center;gap:6px;font-size:.8rem;color:#374151}',
@@ -2554,20 +2644,26 @@ document.getElementById('btn-png').addEventListener('click', async () => {
 });
 
 function exportGanttPNG(name, scale = 2) {
-  const labelsEl = document.getElementById('gantt-labels');
-  const chartEl  = document.getElementById('gantt');
-  const lw  = parseInt(labelsEl.getAttribute('width')  || '0');
-  const cw  = parseInt(chartEl.getAttribute('width')   || '0');
-  const h   = parseInt(labelsEl.getAttribute('height') || '0');
-  if (!lw || !cw || !h) return Promise.resolve();
+  const lHdr  = document.getElementById('gantt-labels-hdr');
+  const lBody = document.getElementById('gantt-labels-body');
+  const cHdr  = document.getElementById('gantt-hdr');
+  const cBody = document.getElementById('gantt-body');
+  if (!lHdr || !lBody || !cHdr || !cBody) return Promise.resolve();
+  const lw     = +lHdr.getAttribute('width')  || 0;
+  const cw     = +cHdr.getAttribute('width')  || 0;
+  const bh     = +lBody.getAttribute('height') || 0;
+  if (!lw || !cw || !bh) return Promise.resolve();
   const totalW = lw + cw;
+  const totalH = HDR_H + bh;
 
+  // lHdr / cHdr SVGs hold the same full innerHTML as lBody / cBody (all rows, absolute y coords).
+  // Live-DOM display uses viewBox clipping; here we export at full height so all rows appear.
   const svgStr = [
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${totalW}" height="${h}" viewBox="0 0 ${totalW} ${h}">`,
-    `<rect width="${totalW}" height="${h}" fill="#fff"/>`,
-    labelsEl.innerHTML,
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${totalW}" height="${totalH}" viewBox="0 0 ${totalW} ${totalH}">`,
+    `<rect width="${totalW}" height="${totalH}" fill="#fff"/>`,
+    lHdr.innerHTML,
     `<g transform="translate(${lw},0)">`,
-    chartEl.innerHTML,
+    cHdr.innerHTML,
     `</g>`,
     `</svg>`,
   ].join('');
@@ -2580,7 +2676,7 @@ function exportGanttPNG(name, scale = 2) {
     img.onload = () => {
       const canvas  = document.createElement('canvas');
       canvas.width  = totalW * scale;
-      canvas.height = h * scale;
+      canvas.height = totalH * scale;
       const ctx = canvas.getContext('2d');
       ctx.scale(scale, scale);
       ctx.drawImage(img, 0, 0);
@@ -2629,6 +2725,7 @@ function initAll() {
 }
 initAll();
 render();
+initGanttResize();
 </script>
 </body>
 </html>
