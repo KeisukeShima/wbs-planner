@@ -275,7 +275,7 @@ tbody tr.erow td{background:#FAF5FF}
   <div id="warn-box"></div>
   <div id="export-area">
     <div class="card" id="gantt-card">
-      <div class="card-header">ガントチャート</div>
+      <div class="card-header" style="display:flex;align-items:center;">ガントチャート<div style="margin-left:auto;display:flex;gap:6px"><button class="btn btn-secondary btn-sm" id="btn-collapse-all">▶ 全折りたたみ</button><button class="btn btn-secondary btn-sm" id="btn-expand-all">▼ 全展開</button></div></div>
       <div class="chart-container">
         <svg id="gantt-labels"></svg>
         <div class="chart-scroll"><svg id="gantt"></svg></div>
@@ -1061,6 +1061,7 @@ function render() {
     ? `<div class="warn-box">⚠ ${scheduled.warnings.map(w => `• ${esc(w)}`).join('<br>')}</div>`
     : '';
 
+  lastScheduled = scheduled;
   renderGantt(scheduled);
   renderTable(scheduled);
 }
@@ -1110,6 +1111,21 @@ function renderTagList(id, dates, isCompany, onRemove) {
   el.querySelectorAll('.h-tag button').forEach(btn =>
     btn.addEventListener('click', () => onRemove(btn.closest('.h-tag').dataset.d)));
 }
+
+document.getElementById('btn-collapse-all').addEventListener('click', () => {
+  if (!lastScheduled) return;
+  C.releases.forEach(r => { ganttCollapse.releases[r.id] = true; });
+  ganttCollapse.items = {};
+  saveCollapseState();
+  renderGantt(lastScheduled);
+  renderTable(lastScheduled);
+});
+document.getElementById('btn-expand-all').addEventListener('click', () => {
+  ganttCollapse = { releases: {}, items: {} };
+  saveCollapseState();
+  renderGantt(lastScheduled);
+  renderTable(lastScheduled);
+});
 
 document.getElementById('btn-reset').addEventListener('click', () => {
   if (!confirm('プロジェクトの全データをリセットしますか？\nこの操作は取り消せません。')) return;
