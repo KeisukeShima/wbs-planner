@@ -1086,6 +1086,34 @@ function initGanttScrollSync() {
   chartScroll.addEventListener('scroll', chartScroll._scrollHandler, { passive: true });
 }
 
+function initGanttResize() {
+  const handle    = document.getElementById('gantt-resize-handle');
+  const labelsCol = document.getElementById('gantt-labels-col');
+  if (!handle || !labelsCol) return;
+  let startX, startLW;
+
+  handle.addEventListener('mousedown', e => {
+    startX  = e.clientX;
+    startLW = LW;
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup',   onUp);
+    e.preventDefault();
+  });
+
+  function onMove(e) {
+    const w = Math.max(120, Math.min(400, startLW + e.clientX - startX));
+    labelsCol.style.width = `${w}px`;
+  }
+
+  function onUp(e) {
+    LW = Math.max(120, Math.min(400, startLW + e.clientX - startX));
+    localStorage.setItem('gantt-label-width', LW);
+    if (lastScheduled) renderGantt(lastScheduled);
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup',   onUp);
+  }
+}
+
 // ═══════════════════════════════════════════════════════════
 //  TABLE RENDERER
 // ═══════════════════════════════════════════════════════════
@@ -2674,6 +2702,7 @@ function initAll() {
 }
 initAll();
 render();
+initGanttResize();
 </script>
 </body>
 </html>
