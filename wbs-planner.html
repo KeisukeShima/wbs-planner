@@ -1963,7 +1963,6 @@ function buildExportSvg(side) {
   const totalH = HDR_H + +body.getAttribute('height');
   return `<svg width="${w}" height="${totalH}" viewBox="0 0 ${w} ${totalH}" xmlns="http://www.w3.org/2000/svg">` +
     hdr.innerHTML +
-    `<g transform="translate(0,${HDR_H})">${body.innerHTML}</g>` +
     `</svg>`;
 }
 
@@ -2656,10 +2655,8 @@ function exportGanttPNG(name, scale = 2) {
     `<svg xmlns="http://www.w3.org/2000/svg" width="${totalW}" height="${totalH}" viewBox="0 0 ${totalW} ${totalH}">`,
     `<rect width="${totalW}" height="${totalH}" fill="#fff"/>`,
     lHdr.innerHTML,
-    `<g transform="translate(0,${HDR_H})">${lBody.innerHTML}</g>`,
     `<g transform="translate(${lw},0)">`,
     cHdr.innerHTML,
-    `<g transform="translate(0,${HDR_H})">${cBody.innerHTML}</g>`,
     `</g>`,
     `</svg>`,
   ].join('');
