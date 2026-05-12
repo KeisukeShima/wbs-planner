@@ -2597,7 +2597,7 @@ function exportGanttPNG(name, scale = 2) {
 // ═══════════════════════════════════════════════════════════
 function esc(s)  { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function esc2(s) { return String(s).replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-function escJS(s) { return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
+function escJS(s) { return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;'); }
 function trunc(s,n) { return s.length>n ? s.slice(0,n-1)+'…' : s; }
 function dl(data, name, type) {
   const url = data instanceof Blob ? URL.createObjectURL(data) : URL.createObjectURL(new Blob([data],{type}));
