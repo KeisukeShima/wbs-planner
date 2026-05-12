@@ -97,17 +97,14 @@ test.describe('ガントチャート sticky ヘッダー & ラベル列リサイ
     const rect = await page.locator('.gantt-date-hdr').evaluate(
       el => el.getBoundingClientRect()
     );
-    // The sticky element should remain at (or near) the top of #preview's content area.
-    // #preview has padding (e.g. 24px) so the content area starts at previewTop + paddingTop.
-    const stickyBaseline = await page.evaluate(() => {
-      const preview = document.getElementById('preview');
-      const previewRect = preview.getBoundingClientRect();
-      const paddingTop = parseFloat(getComputedStyle(preview).paddingTop) || 0;
-      return previewRect.top + paddingTop;
-    });
-    // Sticky: hdr top should be ≈ stickyBaseline (within a few pixels), not scrolled off-screen
-    expect(rect.top).toBeGreaterThanOrEqual(stickyBaseline - 1);
-    expect(rect.top).toBeLessThan(stickyBaseline + 10);
+    // The sticky element uses top:-24px (= negative of #preview padding-top) so it sticks
+    // at the very top of #preview's border box (y=0 of the viewport), not at the content edge.
+    const previewTop = await page.evaluate(() =>
+      document.getElementById('preview').getBoundingClientRect().top
+    );
+    // Sticky: hdr top should be ≈ previewTop (within a few pixels)
+    expect(rect.top).toBeGreaterThanOrEqual(previewTop - 1);
+    expect(rect.top).toBeLessThan(previewTop + 5);
   });
 
   test('drag resize handle changes label column width', async ({ page }) => {
