@@ -1049,7 +1049,9 @@ function renderTable(scheduled) {
   let prevItemKey    = null;
 
   tasks.forEach(t => {
-    // リリース見出し行
+    const releaseId = C.releases[t.releaseIdx]?.id;
+
+    // リリース見出し行（折りたたみ中でも表示）
     if (t.releaseIdx !== prevReleaseIdx) {
       const m     = releaseMeta[t.releaseIdx];
       const color = m.color || '#6D28D9';
@@ -1057,12 +1059,21 @@ function renderTable(scheduled) {
       prevReleaseIdx = t.releaseIdx;
       prevItemKey    = null;
     }
+
+    // リリースが折りたたまれていたらアイテム・タスク行をスキップ
+    if (ganttCollapse.releases[releaseId]) return;
+
     // アイテム見出し行
     const itemKey = `${t.releaseIdx}-${t.itemIdx}`;
     if (itemKey !== prevItemKey) {
       h += `<tr class="irow"><td colspan="5" style="padding-left:22px">${t.itemIdx+1} ${esc(t.itemName)}${t.category ? `<span class="badge" style="background:#F3F4F6;color:#6B7280;margin-left:8px">${esc(t.category)}</span>` : ''}</td></tr>`;
       prevItemKey = itemKey;
     }
+
+    // アイテムが折りたたまれていたらタスク行をスキップ
+    const collapseItemKey = `${releaseId}_${t.itemIdx}`;
+    if (ganttCollapse.items[collapseItemKey]) return;
+
     const biz = (t.startDate && t.endDate) ? countBiz(t.startDate, t.endDate, hols) : '—';
     h += `<tr>
       <td style="padding-left:36px">${esc(t.wbsNo)} ${esc(t.phaseType)}${t.isBackground ? ' <em style="color:#9CA3AF;font-size:.8em">(BG)</em>' : ''}</td>
