@@ -1954,9 +1954,22 @@ document.getElementById('btn-html').addEventListener('click', () => {
   dl(buildViewerHTML(), `${C.projectName||'gantt'}.html`, 'text/html');
 });
 
+function buildExportSvg(side) {
+  const isLabels = side === 'labels';
+  const hdr  = document.getElementById(isLabels ? 'gantt-labels-hdr'  : 'gantt-hdr');
+  const body = document.getElementById(isLabels ? 'gantt-labels-body' : 'gantt-body');
+  if (!hdr || !body) return '<svg xmlns="http://www.w3.org/2000/svg"></svg>';
+  const w      = +hdr.getAttribute('width');
+  const totalH = HDR_H + +body.getAttribute('height');
+  return `<svg width="${w}" height="${totalH}" viewBox="0 0 ${w} ${totalH}" xmlns="http://www.w3.org/2000/svg">` +
+    hdr.innerHTML +
+    `<g transform="translate(0,${HDR_H})">${body.innerHTML}</g>` +
+    `</svg>`;
+}
+
 function buildViewerHTML() {
-  const svgLabels    = document.getElementById('gantt-labels').outerHTML;
-  const svgContent   = document.getElementById('gantt').outerHTML;
+  const svgLabels  = buildExportSvg('labels');
+  const svgContent = buildExportSvg('chart');
   const legendHTML   = document.getElementById('legend').innerHTML;
   const tbodyHTML    = document.getElementById('tbody').innerHTML;
   const titleText    = document.getElementById('pv-title').textContent;
@@ -1976,7 +1989,7 @@ function buildViewerHTML() {
     '.card{background:#fff;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.1);padding:20px 24px;margin-bottom:16px}',
     '.card-header{font-size:.69rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#9CA3AF;margin-bottom:14px}',
     '.chart-container{display:flex;overflow:hidden;align-items:flex-start}svg{display:block}',
-    '#gantt-labels{flex-shrink:0;box-shadow:2px 0 6px rgba(0,0,0,.08)}',
+    '.chart-container>svg:first-child{flex-shrink:0;box-shadow:2px 0 6px rgba(0,0,0,.08)}',
     '.chart-scroll{overflow-x:auto;flex:1}',
     '.legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:12px;padding-top:12px;border-top:1px solid #F3F4F6}',
     '.legend-item{display:flex;align-items:center;gap:6px;font-size:.8rem;color:#374151}',
@@ -2627,20 +2640,26 @@ document.getElementById('btn-png').addEventListener('click', async () => {
 });
 
 function exportGanttPNG(name, scale = 2) {
-  const labelsEl = document.getElementById('gantt-labels');
-  const chartEl  = document.getElementById('gantt');
-  const lw  = parseInt(labelsEl.getAttribute('width')  || '0');
-  const cw  = parseInt(chartEl.getAttribute('width')   || '0');
-  const h   = parseInt(labelsEl.getAttribute('height') || '0');
-  if (!lw || !cw || !h) return Promise.resolve();
+  const lHdr  = document.getElementById('gantt-labels-hdr');
+  const lBody = document.getElementById('gantt-labels-body');
+  const cHdr  = document.getElementById('gantt-hdr');
+  const cBody = document.getElementById('gantt-body');
+  if (!lHdr || !lBody || !cHdr || !cBody) return Promise.resolve();
+  const lw     = +lHdr.getAttribute('width')  || 0;
+  const cw     = +cHdr.getAttribute('width')  || 0;
+  const bh     = +lBody.getAttribute('height') || 0;
+  if (!lw || !cw || !bh) return Promise.resolve();
   const totalW = lw + cw;
+  const totalH = HDR_H + bh;
 
   const svgStr = [
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${totalW}" height="${h}" viewBox="0 0 ${totalW} ${h}">`,
-    `<rect width="${totalW}" height="${h}" fill="#fff"/>`,
-    labelsEl.innerHTML,
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${totalW}" height="${totalH}" viewBox="0 0 ${totalW} ${totalH}">`,
+    `<rect width="${totalW}" height="${totalH}" fill="#fff"/>`,
+    lHdr.innerHTML,
+    `<g transform="translate(0,${HDR_H})">${lBody.innerHTML}</g>`,
     `<g transform="translate(${lw},0)">`,
-    chartEl.innerHTML,
+    cHdr.innerHTML,
+    `<g transform="translate(0,${HDR_H})">${cBody.innerHTML}</g>`,
     `</g>`,
     `</svg>`,
   ].join('');
@@ -2653,7 +2672,7 @@ function exportGanttPNG(name, scale = 2) {
     img.onload = () => {
       const canvas  = document.createElement('canvas');
       canvas.width  = totalW * scale;
-      canvas.height = h * scale;
+      canvas.height = totalH * scale;
       const ctx = canvas.getContext('2d');
       ctx.scale(scale, scale);
       ctx.drawImage(img, 0, 0);
