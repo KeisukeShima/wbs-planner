@@ -394,9 +394,9 @@ function toggleReleaseCollapse(releaseId) {
   renderTable(lastScheduled);
 }
 
-function toggleItemCollapse(releaseId, itemIdx) {
+function toggleItemCollapse(releaseId, itemId) {
   if (!lastScheduled) return;
-  const key = `${releaseId}_${itemIdx}`;
+  const key = `${releaseId}_${itemId}`;
   if (ganttCollapse.items[key]) {
     delete ganttCollapse.items[key];
   } else {
@@ -469,6 +469,7 @@ function loadConfig() {
       if (!r.evalZone)    r.evalZone   = { label: 'リリース評価', color: '#8B5CF6' };
       if (r.showEvalZone === undefined) r.showEvalZone = true;
       if (!r.items)       r.items = [];
+      r.items.forEach(item => { if (!item.id) item.id = genId(); });
     });
 
     return c;
@@ -557,6 +558,7 @@ function runSchedule() {
           releaseIdx:     rIdx,
           releaseId:      release.id,
           itemIdx:        iIdx,
+          itemId:         item.id,
           itemName:       item.name,
           category:       item.category || '',
           phaseType:      phase.type,
@@ -829,7 +831,7 @@ function renderGantt(scheduled) {
     } else {
       const releaseId = C.releases[row.task.releaseIdx]?.id;
       if (ganttCollapse.releases[releaseId]) continue;
-      if (ganttCollapse.items[`${releaseId}_${row.task.itemIdx}`]) continue;
+      if (ganttCollapse.items[`${releaseId}_${row.task.itemId}`]) continue;
       visibleRows.push(row);
     }
   }
@@ -956,7 +958,7 @@ function renderGantt(scheduled) {
     } else if (row.kind === 'hdr') {
       // アイテム見出し行 — ラベルパネル
       const releaseId = C.releases[row.rIdx]?.id;
-      const collapseItemKey = `${releaseId}_${row.iIdx}`;
+      const collapseItemKey = `${releaseId}_${row.item.id}`;
       const isItemCollapsed = !!ganttCollapse.items[collapseItemKey];
       const itemIcon = isItemCollapsed ? '▶' : '▼';
       if (ri % 2 === 0) gL += `<rect x="0" y="${ry}" width="${LW}" height="${ROW_H}" fill="#FAFAFA"/>`;
@@ -978,7 +980,7 @@ function renderGantt(scheduled) {
           g += `<rect x="${bx}" y="${by}" width="${Math.max(ex - bx, 3)}" height="${bh}" rx="3" fill="#9CA3AF" opacity=".35"/>`;
         }
       }
-      gL += `<rect x="0" y="${ry}" width="${LW}" height="${ROW_H}" fill="transparent" style="cursor:pointer" data-collapse-item="${collapseItemKey}" onclick="toggleItemCollapse('${releaseId}', ${row.iIdx})"/>`;
+      gL += `<rect x="0" y="${ry}" width="${LW}" height="${ROW_H}" fill="transparent" style="cursor:pointer" data-collapse-item="${collapseItemKey}" onclick="toggleItemCollapse('${releaseId}', '${row.item.id}')"/>`;
 
     } else {
       // タスク行 — ラベルパネル
@@ -1071,7 +1073,7 @@ function renderTable(scheduled) {
     }
 
     // アイテムが折りたたまれていたらタスク行をスキップ
-    const collapseItemKey = `${releaseId}_${t.itemIdx}`;
+    const collapseItemKey = `${releaseId}_${t.itemId}`;
     if (ganttCollapse.items[collapseItemKey]) return;
 
     const biz = (t.startDate && t.endDate) ? countBiz(t.startDate, t.endDate, hols) : '—';
@@ -1194,6 +1196,8 @@ document.getElementById('btn-reset').addEventListener('click', () => {
   if (!confirm('プロジェクトの全データをリセットしますか？\nこの操作は取り消せません。')) return;
   localStorage.removeItem('gantt-gen-cfg');
   C = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+  ganttCollapse = { releases: {}, items: {} };
+  saveCollapseState();
   saveConfig();
   initProjectForm();
   renderPhaseTypesList();
@@ -1682,7 +1686,7 @@ function wireReleaseEvents(el, pns, ppl) {
   // ── アイテム追加 ──
   el.querySelectorAll('[data-add-item-ri]').forEach(btn => btn.addEventListener('click', () => {
     const ri = parseInt(btn.dataset.addItemRi);
-    C.releases[ri].items.push({ name:'新規アイテム', category:'', note:'', phases:[{ type: pns[0]||'', days:5 }] });
+    C.releases[ri].items.push({ id: genId(), name:'新規アイテム', category:'', note:'', phases:[{ type: pns[0]||'', days:5 }] });
     render(); renderReleasesList();
   }));
 
@@ -1862,6 +1866,8 @@ document.getElementById('f-json-load').addEventListener('change', e => {
       // loadConfig のマイグレーションロジックを再利用
       localStorage.setItem('gantt-gen-cfg', JSON.stringify(raw));
       C = loadConfig();
+      ganttCollapse = { releases: {}, items: {} };
+      saveCollapseState();
       initAll();
       render();
     }
