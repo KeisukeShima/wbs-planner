@@ -817,9 +817,35 @@ function renderGantt(scheduled) {
     }
   }
 
+  // ── 折りたたみ状態に基づいて表示行をフィルタリング ──
+  const visibleRows = [];
+  for (const row of rows) {
+    if (row.kind === 'release') {
+      visibleRows.push(row);
+    } else if (row.kind === 'hdr') {
+      const releaseId = C.releases[row.rIdx]?.id;
+      if (ganttCollapse.releases[releaseId]) continue;
+      visibleRows.push(row);
+    } else {
+      const releaseId = C.releases[row.task.releaseIdx]?.id;
+      if (ganttCollapse.releases[releaseId]) continue;
+      if (ganttCollapse.items[`${releaseId}_${row.task.itemIdx}`]) continue;
+      visibleRows.push(row);
+    }
+  }
+
+  // eval zone 用に visibleRowCount を各リリース行に設定
+  for (let i = 0; i < visibleRows.length; i++) {
+    if (visibleRows[i].kind === 'release') {
+      let j = i + 1;
+      while (j < visibleRows.length && visibleRows[j].kind !== 'release') j++;
+      visibleRows[i].visibleRowCount = j - i;
+    }
+  }
+
   const chartW  = dateToX(vEnd, vStart, unit);
   const totalW  = LW + chartW;
-  const bodyH   = rows.length * ROW_H + PAD;
+  const bodyH   = visibleRows.length * ROW_H + PAD;
   const totalH  = HDR_H + bodyH;
 
   const phaseColor = {};
@@ -846,12 +872,12 @@ function renderGantt(scheduled) {
   });
 
   // ── 各リリースの評価ゾーンを描画（そのリリースの行範囲に限定）──
-  rows.forEach((row, ri) => {
+  visibleRows.forEach((row, ri) => {
     if (row.kind !== 'release') return;
     const m = row.meta;
     if (!m.showEvalZone) return;
     const zoneY    = HDR_H + ri * ROW_H;
-    const zoneH    = row.rowCount * ROW_H;
+    const zoneH    = row.visibleRowCount * ROW_H;
     const evalX1   = dateToX(m.evalStart, vStart, unit);
     const relX     = dateToX(parse(m.releaseDate), vStart, unit);
     const color    = m.evalZone?.color ?? '#8B5CF6';
@@ -900,7 +926,7 @@ function renderGantt(scheduled) {
 
   // ── Rows ──
   const RELEASE_ROW_H = ROW_H;
-  rows.forEach((row, ri) => {
+  visibleRows.forEach((row, ri) => {
     const ry = HDR_H + ri * ROW_H;
 
     if (row.kind === 'release') {
@@ -975,6 +1001,7 @@ function renderGantt(scheduled) {
   svgL.setAttribute('height',  Math.ceil(totalH));
   svgL.setAttribute('viewBox', `0 0 ${LW} ${Math.ceil(totalH)}`);
   svgL.innerHTML = gL;
+  svgL.setAttribute('data-visible-row-count', visibleRows.length);
 
   const svg = document.getElementById('gantt');
   svg.setAttribute('width',   Math.ceil(chartW));
