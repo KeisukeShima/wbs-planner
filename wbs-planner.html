@@ -1100,6 +1100,7 @@ function render() {
       : `${releaseCount} リリース — ${C.releases[0].startDate} 〜 ${C.releases[releaseCount-1].releaseDate}`;
 
   if (releaseCount === 0) {
+    lastScheduled = null;
     document.getElementById('gantt-labels').innerHTML = '';
     document.getElementById('gantt').innerHTML = '';
     document.getElementById('legend').innerHTML = '';
@@ -1112,6 +1113,7 @@ function render() {
   try {
     scheduled = runSchedule();
   } catch(e) {
+    lastScheduled = null;
     document.getElementById('warn-box').innerHTML = `<div class="warn-box">❌ スケジューリングエラー: ${esc(e.message)}</div>`;
     return;
   }
