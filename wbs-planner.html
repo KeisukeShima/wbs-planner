@@ -275,7 +275,7 @@ tbody tr.erow td{background:#FAF5FF}
   <div id="warn-box"></div>
   <div id="export-area">
     <div class="card" id="gantt-card">
-      <div class="card-header">ガントチャート</div>
+      <div class="card-header" style="display:flex;align-items:center;">ガントチャート<div style="margin-left:auto;display:flex;gap:6px"><button class="btn btn-secondary btn-sm" id="btn-collapse-all">▶ 全折りたたみ</button><button class="btn btn-secondary btn-sm" id="btn-expand-all">▼ 全展開</button></div></div>
       <div class="chart-container">
         <svg id="gantt-labels"></svg>
         <div class="chart-scroll"><svg id="gantt"></svg></div>
@@ -368,6 +368,45 @@ const DEFAULT_CONFIG = {
 // ═══════════════════════════════════════════════════════════
 let C = loadConfig();
 let _undoSnapshot = null;
+
+// ── ガントチャート折りたたみ UI ステート ──
+function loadCollapseState() {
+  try {
+    const s = localStorage.getItem('gantt-collapse-state');
+    return s ? JSON.parse(s) : { releases: {}, items: {} };
+  } catch { return { releases: {}, items: {} }; }
+}
+function saveCollapseState() {
+  try { localStorage.setItem('gantt-collapse-state', JSON.stringify(ganttCollapse)); } catch {}
+}
+let ganttCollapse = loadCollapseState();
+let lastScheduled = null;
+
+function toggleReleaseCollapse(releaseId) {
+  if (!lastScheduled) return;
+  if (ganttCollapse.releases[releaseId]) {
+    delete ganttCollapse.releases[releaseId];
+  } else {
+    ganttCollapse.releases[releaseId] = true;
+  }
+  saveCollapseState();
+  renderGantt(lastScheduled);
+  renderTable(lastScheduled);
+}
+
+function toggleItemCollapse(releaseId, itemId) {
+  if (!lastScheduled) return;
+  const key = `${releaseId}_${itemId}`;
+  if (ganttCollapse.items[key]) {
+    delete ganttCollapse.items[key];
+  } else {
+    ganttCollapse.items[key] = true;
+  }
+  saveCollapseState();
+  renderGantt(lastScheduled);
+  renderTable(lastScheduled);
+}
+
 function updateUndoBtn() {
   const btn = document.getElementById('btn-undo');
   if (btn) btn.disabled = !_undoSnapshot;
@@ -430,6 +469,7 @@ function loadConfig() {
       if (!r.evalZone)    r.evalZone   = { label: 'リリース評価', color: '#8B5CF6' };
       if (r.showEvalZone === undefined) r.showEvalZone = true;
       if (!r.items)       r.items = [];
+      r.items.forEach(item => { if (!item.id) item.id = genId(); });
     });
 
     return c;
@@ -518,6 +558,7 @@ function runSchedule() {
           releaseIdx:     rIdx,
           releaseId:      release.id,
           itemIdx:        iIdx,
+          itemId:         item.id,
           itemName:       item.name,
           category:       item.category || '',
           phaseType:      phase.type,
@@ -778,9 +819,35 @@ function renderGantt(scheduled) {
     }
   }
 
+  // ── 折りたたみ状態に基づいて表示行をフィルタリング ──
+  const visibleRows = [];
+  for (const row of rows) {
+    if (row.kind === 'release') {
+      visibleRows.push(row);
+    } else if (row.kind === 'hdr') {
+      const releaseId = C.releases[row.rIdx]?.id;
+      if (ganttCollapse.releases[releaseId]) continue;
+      visibleRows.push(row);
+    } else {
+      const releaseId = C.releases[row.task.releaseIdx]?.id;
+      if (ganttCollapse.releases[releaseId]) continue;
+      if (ganttCollapse.items[`${releaseId}_${row.task.itemId}`]) continue;
+      visibleRows.push(row);
+    }
+  }
+
+  // eval zone 用に visibleRowCount を各リリース行に設定
+  for (let i = 0; i < visibleRows.length; i++) {
+    if (visibleRows[i].kind === 'release') {
+      let j = i + 1;
+      while (j < visibleRows.length && visibleRows[j].kind !== 'release') j++;
+      visibleRows[i].visibleRowCount = j - i;
+    }
+  }
+
   const chartW  = dateToX(vEnd, vStart, unit);
   const totalW  = LW + chartW;
-  const bodyH   = rows.length * ROW_H + PAD;
+  const bodyH   = visibleRows.length * ROW_H + PAD;
   const totalH  = HDR_H + bodyH;
 
   const phaseColor = {};
@@ -807,12 +874,12 @@ function renderGantt(scheduled) {
   });
 
   // ── 各リリースの評価ゾーンを描画（そのリリースの行範囲に限定）──
-  rows.forEach((row, ri) => {
+  visibleRows.forEach((row, ri) => {
     if (row.kind !== 'release') return;
     const m = row.meta;
     if (!m.showEvalZone) return;
     const zoneY    = HDR_H + ri * ROW_H;
-    const zoneH    = row.rowCount * ROW_H;
+    const zoneH    = row.visibleRowCount * ROW_H;
     const evalX1   = dateToX(m.evalStart, vStart, unit);
     const relX     = dateToX(parse(m.releaseDate), vStart, unit);
     const color    = m.evalZone?.color ?? '#8B5CF6';
@@ -861,15 +928,21 @@ function renderGantt(scheduled) {
 
   // ── Rows ──
   const RELEASE_ROW_H = ROW_H;
-  rows.forEach((row, ri) => {
+  visibleRows.forEach((row, ri) => {
     const ry = HDR_H + ri * ROW_H;
 
     if (row.kind === 'release') {
       // リリース見出し行 — ラベルパネル
       const color = row.meta.color || '#6D28D9';
+      const releaseId = row.meta.id;
+      const isRelCollapsed = !!ganttCollapse.releases[releaseId];
+      const relIcon = isRelCollapsed ? '▶' : '▼';
+      const itemCount = C.releases[row.rIdx]?.items?.length ?? 0;
+      const relSuffix = isRelCollapsed ? ` (${itemCount}アイテム)` : '';
       gL += `<rect x="0" y="${ry}" width="${LW}" height="${RELEASE_ROW_H}" fill="${color}" opacity=".18"/>`;
-      gL += `<text x="8" y="${ry+RELEASE_ROW_H/2+4}" fill="${color}" font-size="11" font-weight="700" font-family="sans-serif">▼ ${esc(trunc(row.meta.name, 18))}</text>`;
+      gL += `<text x="8" y="${ry+RELEASE_ROW_H/2+4}" fill="${color}" font-size="11" font-weight="700" font-family="sans-serif">${relIcon} ${esc(trunc(row.meta.name, 15))}${relSuffix}</text>`;
       gL += `<line x1="0" y1="${ry}" x2="${LW}" y2="${ry}" stroke="${color}" stroke-width=".8" opacity=".4"/>`;
+      gL += `<rect x="0" y="${ry}" width="${LW}" height="${RELEASE_ROW_H}" fill="transparent" style="cursor:pointer" data-collapse-release="${esc(releaseId)}" onclick="toggleReleaseCollapse('${escJS(releaseId)}')"/>`;
       // チャート部分: startDate〜releaseDate の期間バー
       const rSX = dateToX(parse(row.meta.startDate), vStart, unit);
       const rEX = dateToX(parse(row.meta.releaseDate), vStart, unit);
@@ -884,14 +957,30 @@ function renderGantt(scheduled) {
 
     } else if (row.kind === 'hdr') {
       // アイテム見出し行 — ラベルパネル
+      const releaseId = C.releases[row.rIdx]?.id;
+      const collapseItemKey = `${releaseId}_${row.item.id}`;
+      const isItemCollapsed = !!ganttCollapse.items[collapseItemKey];
+      const itemIcon = isItemCollapsed ? '▶' : '▼';
       if (ri % 2 === 0) gL += `<rect x="0" y="${ry}" width="${LW}" height="${ROW_H}" fill="#FAFAFA"/>`;
-      gL += `<text x="16" y="${ry+ROW_H/2+4}" fill="#374151" font-size="10" font-weight="700" font-family="sans-serif">${row.iIdx+1} ${esc(trunc(row.item.name, 20))}</text>`;
-      if (row.item.category) {
+      gL += `<text x="8" y="${ry+ROW_H/2+4}" fill="#374151" font-size="10" font-weight="700" font-family="sans-serif">${itemIcon} ${row.iIdx+1} ${esc(trunc(row.item.name, 16))}</text>`;
+      if (row.item.category && !isItemCollapsed) {
         gL += `<rect x="${LW-75}" y="${ry+6}" width="70" height="16" rx="8" fill="#F3F4F6"/>`;
         gL += `<text x="${LW-40}" y="${ry+17}" text-anchor="middle" fill="#6B7280" font-size="9" font-family="sans-serif">${esc(trunc(row.item.category, 10))}</text>`;
       }
       gL += `<line x1="0" y1="${ry}" x2="${LW}" y2="${ry}" stroke="#E5E7EB" stroke-width=".8"/>`;
       g  += `<line x1="0" y1="${ry}" x2="${chartW}" y2="${ry}" stroke="#E5E7EB" stroke-width=".8"/>`;
+      if (isItemCollapsed) {
+        const itemTasks = tasks.filter(t => t.releaseIdx === row.rIdx && t.itemIdx === row.iIdx && t.startDate && t.endDate);
+        if (itemTasks.length) {
+          const minStart = new Date(Math.min(...itemTasks.map(t => t.startDate.getTime())));
+          const maxEnd   = new Date(Math.max(...itemTasks.map(t => t.endDate.getTime())));
+          const bx = dateToX(minStart, vStart, unit);
+          const ex = dateToX(addDays(maxEnd, 1), vStart, unit);
+          const by = ry + 4, bh = ROW_H - 8;
+          g += `<rect x="${bx}" y="${by}" width="${Math.max(ex - bx, 3)}" height="${bh}" rx="3" fill="#9CA3AF" opacity=".35"/>`;
+        }
+      }
+      gL += `<rect x="0" y="${ry}" width="${LW}" height="${ROW_H}" fill="transparent" style="cursor:pointer" data-collapse-item="${esc(collapseItemKey)}" onclick="toggleItemCollapse('${escJS(releaseId)}', '${escJS(row.item.id)}')"/>`;
 
     } else {
       // タスク行 — ラベルパネル
@@ -936,6 +1025,7 @@ function renderGantt(scheduled) {
   svgL.setAttribute('height',  Math.ceil(totalH));
   svgL.setAttribute('viewBox', `0 0 ${LW} ${Math.ceil(totalH)}`);
   svgL.innerHTML = gL;
+  svgL.setAttribute('data-visible-row-count', visibleRows.length);
 
   const svg = document.getElementById('gantt');
   svg.setAttribute('width',   Math.ceil(chartW));
@@ -961,7 +1051,9 @@ function renderTable(scheduled) {
   let prevItemKey    = null;
 
   tasks.forEach(t => {
-    // リリース見出し行
+    const releaseId = C.releases[t.releaseIdx]?.id;
+
+    // リリース見出し行（折りたたみ中でも表示）
     if (t.releaseIdx !== prevReleaseIdx) {
       const m     = releaseMeta[t.releaseIdx];
       const color = m.color || '#6D28D9';
@@ -969,12 +1061,21 @@ function renderTable(scheduled) {
       prevReleaseIdx = t.releaseIdx;
       prevItemKey    = null;
     }
+
+    // リリースが折りたたまれていたらアイテム・タスク行をスキップ
+    if (ganttCollapse.releases[releaseId]) return;
+
     // アイテム見出し行
     const itemKey = `${t.releaseIdx}-${t.itemIdx}`;
     if (itemKey !== prevItemKey) {
       h += `<tr class="irow"><td colspan="5" style="padding-left:22px">${t.itemIdx+1} ${esc(t.itemName)}${t.category ? `<span class="badge" style="background:#F3F4F6;color:#6B7280;margin-left:8px">${esc(t.category)}</span>` : ''}</td></tr>`;
       prevItemKey = itemKey;
     }
+
+    // アイテムが折りたたまれていたらタスク行をスキップ
+    const collapseItemKey = `${releaseId}_${t.itemId}`;
+    if (ganttCollapse.items[collapseItemKey]) return;
+
     const biz = (t.startDate && t.endDate) ? countBiz(t.startDate, t.endDate, hols) : '—';
     h += `<tr>
       <td style="padding-left:36px">${esc(t.wbsNo)} ${esc(t.phaseType)}${t.isBackground ? ' <em style="color:#9CA3AF;font-size:.8em">(BG)</em>' : ''}</td>
@@ -1001,6 +1102,7 @@ function render() {
       : `${releaseCount} リリース — ${C.releases[0].startDate} 〜 ${C.releases[releaseCount-1].releaseDate}`;
 
   if (releaseCount === 0) {
+    lastScheduled = null;
     document.getElementById('gantt-labels').innerHTML = '';
     document.getElementById('gantt').innerHTML = '';
     document.getElementById('legend').innerHTML = '';
@@ -1013,6 +1115,7 @@ function render() {
   try {
     scheduled = runSchedule();
   } catch(e) {
+    lastScheduled = null;
     document.getElementById('warn-box').innerHTML = `<div class="warn-box">❌ スケジューリングエラー: ${esc(e.message)}</div>`;
     return;
   }
@@ -1022,6 +1125,7 @@ function render() {
     ? `<div class="warn-box">⚠ ${scheduled.warnings.map(w => `• ${esc(w)}`).join('<br>')}</div>`
     : '';
 
+  lastScheduled = scheduled;
   renderGantt(scheduled);
   renderTable(scheduled);
 }
@@ -1072,10 +1176,28 @@ function renderTagList(id, dates, isCompany, onRemove) {
     btn.addEventListener('click', () => onRemove(btn.closest('.h-tag').dataset.d)));
 }
 
+document.getElementById('btn-collapse-all').addEventListener('click', () => {
+  if (!lastScheduled) return;
+  C.releases.forEach(r => { ganttCollapse.releases[r.id] = true; });
+  ganttCollapse.items = {};
+  saveCollapseState();
+  renderGantt(lastScheduled);
+  renderTable(lastScheduled);
+});
+document.getElementById('btn-expand-all').addEventListener('click', () => {
+  if (!lastScheduled) return;
+  ganttCollapse = { releases: {}, items: {} };
+  saveCollapseState();
+  renderGantt(lastScheduled);
+  renderTable(lastScheduled);
+});
+
 document.getElementById('btn-reset').addEventListener('click', () => {
   if (!confirm('プロジェクトの全データをリセットしますか？\nこの操作は取り消せません。')) return;
   localStorage.removeItem('gantt-gen-cfg');
-  C = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+  C = loadConfig();
+  ganttCollapse = { releases: {}, items: {} };
+  saveCollapseState();
   saveConfig();
   initProjectForm();
   renderPhaseTypesList();
@@ -1564,7 +1686,7 @@ function wireReleaseEvents(el, pns, ppl) {
   // ── アイテム追加 ──
   el.querySelectorAll('[data-add-item-ri]').forEach(btn => btn.addEventListener('click', () => {
     const ri = parseInt(btn.dataset.addItemRi);
-    C.releases[ri].items.push({ name:'新規アイテム', category:'', note:'', phases:[{ type: pns[0]||'', days:5 }] });
+    C.releases[ri].items.push({ id: genId(), name:'新規アイテム', category:'', note:'', phases:[{ type: pns[0]||'', days:5 }] });
     render(); renderReleasesList();
   }));
 
@@ -1744,6 +1866,8 @@ document.getElementById('f-json-load').addEventListener('change', e => {
       // loadConfig のマイグレーションロジックを再利用
       localStorage.setItem('gantt-gen-cfg', JSON.stringify(raw));
       C = loadConfig();
+      ganttCollapse = { releases: {}, items: {} };
+      saveCollapseState();
       initAll();
       render();
     }
@@ -2473,6 +2597,7 @@ function exportGanttPNG(name, scale = 2) {
 // ═══════════════════════════════════════════════════════════
 function esc(s)  { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function esc2(s) { return String(s).replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function escJS(s) { return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;'); }
 function trunc(s,n) { return s.length>n ? s.slice(0,n-1)+'…' : s; }
 function dl(data, name, type) {
   const url = data instanceof Blob ? URL.createObjectURL(data) : URL.createObjectURL(new Blob([data],{type}));
