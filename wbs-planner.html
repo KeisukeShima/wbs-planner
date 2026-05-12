@@ -751,7 +751,11 @@ function runSchedule() {
 // ═══════════════════════════════════════════════════════════
 //  SVG GANTT RENDERER
 // ═══════════════════════════════════════════════════════════
-const LW=220, ROW_H=30, HDR_H=48, PAD=8;
+let LW = (() => {
+  const s = localStorage.getItem('gantt-label-width');
+  return (s && !isNaN(+s)) ? Math.max(120, Math.min(400, +s)) : 220;
+})();
+const ROW_H=30, HDR_H=48, PAD=8;
 const COL_W = { days: 22, weeks: 68, months: 110 };
 
 function dateToX(date, vStart, unit) {
@@ -787,8 +791,9 @@ function renderGantt(scheduled) {
   const colW = COL_W[unit];
 
   if (!tasks.length || !releaseMeta.length) {
-    document.getElementById('gantt-labels').innerHTML = '';
-    document.getElementById('gantt').innerHTML = '';
+    ['gantt-labels-hdr','gantt-labels-body','gantt-hdr','gantt-body'].forEach(
+      id => { const el = document.getElementById(id); if (el) el.innerHTML = ''; }
+    );
     document.getElementById('legend').innerHTML = '';
     return;
   }
@@ -1032,18 +1037,33 @@ function renderGantt(scheduled) {
   gL = `<rect x="0" y="0" width="${LW}" height="${totalH}" fill="#fff"/>` + gL;
   g  = `<rect x="0" y="0" width="${chartW}" height="${totalH}" fill="#fff"/>` + g;
 
-  const svgL = document.getElementById('gantt-labels');
-  svgL.setAttribute('width',   LW);
-  svgL.setAttribute('height',  Math.ceil(totalH));
-  svgL.setAttribute('viewBox', `0 0 ${LW} ${Math.ceil(totalH)}`);
-  svgL.innerHTML = gL;
-  svgL.setAttribute('data-visible-row-count', visibleRows.length);
+  const svgLabelsHdr = document.getElementById('gantt-labels-hdr');
+  svgLabelsHdr.setAttribute('width',   LW);
+  svgLabelsHdr.setAttribute('height',  HDR_H);
+  svgLabelsHdr.setAttribute('viewBox', `0 0 ${LW} ${HDR_H}`);
+  svgLabelsHdr.innerHTML = gL;
 
-  const svg = document.getElementById('gantt');
-  svg.setAttribute('width',   Math.ceil(chartW));
-  svg.setAttribute('height',  Math.ceil(totalH));
-  svg.setAttribute('viewBox', `0 0 ${Math.ceil(chartW)} ${Math.ceil(totalH)}`);
-  svg.innerHTML = g;
+  const svgLabelsBody = document.getElementById('gantt-labels-body');
+  svgLabelsBody.setAttribute('width',   LW);
+  svgLabelsBody.setAttribute('height',  Math.ceil(bodyH));
+  svgLabelsBody.setAttribute('viewBox', `0 ${HDR_H} ${LW} ${Math.ceil(bodyH)}`);
+  svgLabelsBody.innerHTML = gL;
+  svgLabelsBody.setAttribute('data-visible-row-count', visibleRows.length);
+
+  const svgHdr = document.getElementById('gantt-hdr');
+  svgHdr.setAttribute('width',   Math.ceil(chartW));
+  svgHdr.setAttribute('height',  HDR_H);
+  svgHdr.setAttribute('viewBox', `0 0 ${Math.ceil(chartW)} ${HDR_H}`);
+  svgHdr.innerHTML = g;
+
+  const svgBody = document.getElementById('gantt-body');
+  svgBody.setAttribute('width',   Math.ceil(chartW));
+  svgBody.setAttribute('height',  Math.ceil(bodyH));
+  svgBody.setAttribute('viewBox', `0 ${HDR_H} ${Math.ceil(chartW)} ${Math.ceil(bodyH)}`);
+  svgBody.innerHTML = g;
+
+  document.getElementById('gantt-labels-col').style.width = `${LW}px`;
+  initGanttScrollSync();
 
   // Legend
   let leg = '';
@@ -1052,6 +1072,8 @@ function renderGantt(scheduled) {
   });
   document.getElementById('legend').innerHTML = leg;
 }
+
+function initGanttScrollSync() { /* implementation added in next step */ }
 
 // ═══════════════════════════════════════════════════════════
 //  TABLE RENDERER
@@ -1115,9 +1137,9 @@ function render() {
 
   if (releaseCount === 0) {
     lastScheduled = null;
-    document.getElementById('gantt-labels').innerHTML = '';
-    document.getElementById('gantt').innerHTML = '';
-    document.getElementById('legend').innerHTML = '';
+    ['gantt-labels-hdr','gantt-labels-body','gantt-hdr','gantt-body','legend'].forEach(
+      id => { const el = document.getElementById(id); if (el) el.innerHTML = ''; }
+    );
     document.getElementById('tbody').innerHTML = '';
     document.getElementById('warn-box').innerHTML = '';
     return;
