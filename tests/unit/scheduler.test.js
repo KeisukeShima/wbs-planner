@@ -203,6 +203,40 @@ describe('no eligible person', () => {
   });
 });
 
+describe('fixed start date', () => {
+  it('fixed task starts on exact business day when fixedStart is a weekday', () => {
+    // Jan 19 = Monday (business day)
+    const cfg = makeConfig({
+      items: [{ name: 'Fixed', category: '', note: '', phases: [{ type: '開発', days: 3, fixedStart: '2026-01-19' }] }],
+    });
+    const { tasks } = runScheduleWith(cfg);
+    expect(fmt(tasks[0].startDate)).toBe('2026-01-19');
+  });
+
+  it('fixed task starts on next business day when fixedStart falls on a holiday', () => {
+    // 2026-01-12 is a national holiday (成人の日); next biz day = 2026-01-13 (Tuesday)
+    const cfg = makeConfig({
+      holidays: { national: ['2026-01-12'], company: [] },
+      startDate: '2026-01-05',
+      releaseDate: '2026-01-23',
+      items: [{ name: 'HolFixed', category: '', note: '', phases: [{ type: '開発', days: 2, fixedStart: '2026-01-12' }] }],
+    });
+    const { tasks } = runScheduleWith(cfg);
+    expect(tasks[0].startDate).not.toBeNull();
+    expect(fmt(tasks[0].startDate)).toBe('2026-01-13');
+  });
+
+  it('fixed task starts on next business day when fixedStart falls on a Saturday', () => {
+    // 2026-01-03 = Saturday; next biz day = 2026-01-05 (Monday)
+    const cfg = makeConfig({
+      items: [{ name: 'WkndFixed', category: '', note: '', phases: [{ type: '開発', days: 2, fixedStart: '2026-01-03' }] }],
+    });
+    const { tasks } = runScheduleWith(cfg);
+    expect(tasks[0].startDate).not.toBeNull();
+    expect(fmt(tasks[0].startDate)).toBe('2026-01-05');
+  });
+});
+
 describe('releaseMeta', () => {
   it('releaseMeta contains evalStart for the release', () => {
     const { releaseMeta } = runScheduleWith(makeConfig());

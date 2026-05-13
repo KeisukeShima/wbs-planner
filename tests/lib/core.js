@@ -236,7 +236,7 @@ export function runScheduleWith(config) {
 
     // 固定開始日タスクを強制開始
     for (const t of tasks) {
-      if (t.isFixed && t.status === 'waiting' && +t.fixedStartDate === +d) {
+      if (t.isFixed && t.status === 'waiting' && d >= t.fixedStartDate) {
         const assigned = pickPeople(t, d);
         t.status = 'inProgress'; t.startDate = new Date(d);
         if (assigned) {
